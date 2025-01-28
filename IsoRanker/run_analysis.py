@@ -38,15 +38,18 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # Load input files
+    print("Reading input files", flush=True)
     sample_info = pd.read_csv(sample_info_path)
     classification_data = pd.read_csv(classification_path, sep="\t")
     genemap = pd.read_csv(genemap_path, sep='\t', skiprows=3) # Read the file, skipping the first 3 rows
     genemap = genemap[genemap['Approved Gene Symbol'].notnull()]
 
     # Create the expression matrix
+    print("Creating expression matrix", flush=True)
     expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.csv"))
 
     # Generate long-format DataFrame
+    print("Creating long format expression matrix", flush=True)
     long_format_df = create_long_format(expression_matrix, sample_info)
 
     # Filter input
