@@ -84,10 +84,10 @@ def main():
             bin_proportion=0.01
         )
 
-        #rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
-        #filtered_ranked_data = ranked_data[ranked_data[rank_columns].le(1000).any(axis=1)]
+        rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
+        filtered_ranked_data = ranked_data[ranked_data[rank_columns].le(1000).any(axis=1)]
 
-        filtered_ranked_data = ranked_data
+        #filtered_ranked_data = ranked_data
 
         filtered_ranked_data = filtered_ranked_data.merge(
             genemap[['Approved Gene Symbol', 'Phenotypes']],
@@ -112,10 +112,10 @@ def main():
             bin_proportion=0.01
         )
 
-        #rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
-        #filtered_ranked_data = ranked_data[ranked_data[rank_columns].le(1000).any(axis=1)]
+        rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
+        filtered_ranked_data = ranked_data[ranked_data[rank_columns].le(1000).any(axis=1)]
 
-        filtered_ranked_data = ranked_data
+        #filtered_ranked_data = ranked_data
 
         filtered_ranked_data = filtered_ranked_data.merge(
             genemap[['Approved Gene Symbol', 'Phenotypes']],

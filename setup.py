@@ -15,6 +15,7 @@ setup(
     entry_points={
         "console_scripts": [
             "run_analysis=IsoRanker.run_analysis:main",
+            "run_analysis_top_ranked=IsoRanker.run_analysis_top_ranked:main",
         ],
     },
     author="Hank Cheng",
