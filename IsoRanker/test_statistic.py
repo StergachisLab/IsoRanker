@@ -121,6 +121,42 @@ def NMD_rare_steady_state_transcript(group):
     group['test_statistic'] = results
     return group
 
+def Noncyclo_Allelic_imbalance(group):
+    """
+    Calculate test statistic for Noncyclo allelic imbalance.
+    This function calculates a unique test statistic for each sample in the group.
+    """
+    results = []
+    for _, row in group.iterrows():
+        # Calculate the test statistic for this specific sample
+        test_statistic = (
+            np.log2(row['HP1_noncyclo_count']/row['HP2_noncyclo_count']) *
+            np.log2(row['HP1_noncyclo_count'] + row['HP2_noncyclo_count']) *
+        )
+        results.append(test_statistic)
+    
+    # Assign the calculated test statistics back to the group
+    group['test_statistic'] = results
+    return group
+
+def Cyclo_Allelic_imbalance(group):
+    """
+    Calculate test statistic for Cyclo allelic imbalance.
+    This function calculates a unique test statistic for each sample in the group.
+    """
+    results = []
+    for _, row in group.iterrows():
+        # Calculate the test statistic for this specific sample
+        test_statistic = (
+            np.log2(row['HP1_cyclo_count']/row['HP2_cyclo_count']) *
+            np.log2(row['HP1_cyclo_count'] + row['HP2_cyclo_count']) *
+        )
+        results.append(test_statistic)
+    
+    # Assign the calculated test statistics back to the group
+    group['test_statistic'] = results
+    return group
+
 
 def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_group_col=None, gene_level=True, bin_proportion=0.01, filter_before_ranking=True):
     """
