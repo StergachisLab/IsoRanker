@@ -121,7 +121,7 @@ def NMD_rare_steady_state_transcript(group):
     group['test_statistic'] = results
     return group
 
-def Noncyclo_Allelic_imbalance(group):
+def Noncyclo_Allelic_Imbalance(group):
     """
     Calculate test statistic for Noncyclo allelic imbalance.
     This function calculates a unique test statistic for each sample in the group.
@@ -139,7 +139,7 @@ def Noncyclo_Allelic_imbalance(group):
     group['test_statistic'] = results
     return group
 
-def Cyclo_Allelic_imbalance(group):
+def Cyclo_Allelic_Imbalance(group):
     """
     Calculate test statistic for Cyclo allelic imbalance.
     This function calculates a unique test statistic for each sample in the group.
@@ -309,6 +309,16 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         processed_data["Cyclo_Z_Score"] = (
             processed_data["Cyclo_TPM"] - processed_data["Avg_Cyclo_TPM"]
         ) / processed_data["SD_Cyclo_TPM"]
+    elif test_statistic_func == Noncyclo_Allelic_Imbalance:
+        processed_data["NoncycloHaplotypeDifference"] = (
+            (processed_data["HP1_noncyclo_count"] - processed_data["HP2_noncyclo_count"]) / 
+            (processed_data["HP1_noncyclo_count"] + processed_data["HP2_noncyclo_count"])
+        )
+    elif test_statistic_func == Cyclo_Allelic_Imbalance:
+        processed_data["CycloHaplotypeDifference"] = (
+            (processed_data["HP1_cyclo_count"] - processed_data["HP2_cyclo_count"]) / 
+            (processed_data["HP1_cyclo_count"] + processed_data["HP2_cyclo_count"])
+        )
 
     # Apply hypothesis test
     tested_data = apply_hypothesis_test(processed_data, group_col=gene_group_col if gene_level else group_col, test_statistic_func=test_statistic_func)
