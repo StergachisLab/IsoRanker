@@ -99,7 +99,7 @@ def main():
             right_on='Approved Gene Symbol'
         ).drop(columns=['Approved Gene Symbol'])
 
-        output_file = os.path.join(output_dir, f"{test_name}_gene_top_ranked_data.csv")
+        output_file = os.path.join(output_dir, f"{test_name}_gene_data.csv")
         filtered_ranked_data.to_csv(output_file, index=False)
         print(f"Results saved to {output_file}", flush=True)
 
@@ -127,7 +127,7 @@ def main():
             right_on='Approved Gene Symbol'
         ).drop(columns=['Approved Gene Symbol'])
 
-        output_file = os.path.join(output_dir, f"{test_name}_isoform_top_ranked_data.csv")
+        output_file = os.path.join(output_dir, f"{test_name}_isoform_data.csv")
         filtered_ranked_data.to_csv(output_file, index=False)
         print(f"Results saved to {output_file}", flush=True)
 
