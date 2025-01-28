@@ -299,14 +299,14 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     elif test_statistic_func in [Noncyclo_Expression_Outlier_LOE, Noncyclo_Expression_Outlier_GOE]:
         processed_data["Avg_Noncyclo_TPM"] = processed_data.groupby(group_col)["Noncyclo_TPM"].transform("mean")
         processed_data["SD_Noncyclo_TPM"] = processed_data.groupby(group_col)["Noncyclo_TPM"].transform("std")
-        processed_data["Noncyclo_Z_Score"] = (
+        processed_data["Noncyclo_TPM_Z_Score"] = (
             processed_data["Noncyclo_TPM"] - processed_data["Avg_Noncyclo_TPM"]
         ) / processed_data["SD_Noncyclo_TPM"]
 
     elif test_statistic_func in [Cyclo_Expression_Outlier_LOE, Cyclo_Expression_Outlier_GOE]:
         processed_data["Avg_Cyclo_TPM"] = processed_data.groupby(group_col)["Cyclo_TPM"].transform("mean")
         processed_data["SD_Cyclo_TPM"] = processed_data.groupby(group_col)["Cyclo_TPM"].transform("std")
-        processed_data["Cyclo_Z_Score"] = (
+        processed_data["Cyclo_TPM_Z_Score"] = (
             processed_data["Cyclo_TPM"] - processed_data["Avg_Cyclo_TPM"]
         ) / processed_data["SD_Cyclo_TPM"]
     elif test_statistic_func == Noncyclo_Allelic_Imbalance:
@@ -333,13 +333,13 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         elif test_statistic_func == NMD_test_statistic:
             processed_data = processed_data[processed_data["NormalizedFractionDifference"] > 0]
         elif test_statistic_func == Noncyclo_Expression_Outlier_LOE:
-            processed_data = processed_data[processed_data["Noncyclo_Z_Score"] < 0]
+            processed_data = processed_data[processed_data["Noncyclo_TPM_Z_Score"] < 0]
         elif test_statistic_func == Noncyclo_Expression_Outlier_GOE:
-            processed_data = processed_data[processed_data["Noncyclo_Z_Score"] > 0]
+            processed_data = processed_data[processed_data["Noncyclo_TPM_Z_Score"] > 0]
         elif test_statistic_func == Cyclo_Expression_Outlier_LOE:
-            processed_data = processed_data[processed_data["Cyclo_Z_Score"] < 0]
+            processed_data = processed_data[processed_data["Cyclo_TPM_Z_Score"] < 0]
         elif test_statistic_func == Cyclo_Expression_Outlier_GOE:
-            processed_data = processed_data[processed_data["Cyclo_Z_Score"] > 0]
+            processed_data = processed_data[processed_data["Cyclo_TPM_Z_Score"] > 0]
 
 
     # Calculate ranks
