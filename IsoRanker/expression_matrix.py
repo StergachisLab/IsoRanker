@@ -137,7 +137,7 @@ def create_long_format(expression_matrix, sample_info=None):
     aggregated_data["Noncyclo_TPM"] = (aggregated_data["noncyclo_count"] / aggregated_data["total_noncyclo"]) * 1e6
 
     
-    # Calculate Cyclo_TPM_rank and Noncyclo_TPM_rank with average ranking for ties. Should go from 1 to number of patients. The higher the rank, the larger the TPM.
+    # Calculate Cyclo_TPM_rank and Noncyclo_TPM_rank with average ranking for ties. Should go from 1 to number of patients. The lower the rank, the larger the TPM.
     aggregated_data["Cyclo_TPM_Rank"] = aggregated_data.groupby("Isoform")["Cyclo_TPM"].rank(ascending=False, method="average")
     aggregated_data["Noncyclo_TPM_Rank"] = aggregated_data.groupby("Isoform")["Noncyclo_TPM"].rank(ascending=False, method="average")
 

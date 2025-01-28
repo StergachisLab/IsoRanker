@@ -132,7 +132,7 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     - test_statistic_func (function): The hypothesis test function to apply.
     - gene_group_col (str, optional): The column to group by at the gene level. Defaults to group_col.
     - gene_level (bool): Whether to aggregate at the gene level before processing.
-    - bin_proportion (float): Bin proportion threshold for low-abundance isoforms.
+    - bin_proportion (float): Bin proportion threshold for low-abundance isoforms. Only used for NMD_rare_steady_state_transcript.
     
     Returns:
     - pd.DataFrame: Ranked data with additional calculated columns.
@@ -192,7 +192,7 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         )
 
         # Recalculate Cyclo_TPM_rank and Noncyclo_TPM_rank
-        # Calculate Cyclo_TPM_rank and Noncyclo_TPM_rank with average ranking for ties. Should go from 1 to number of patients. The higher the rank, the larger the TPM.
+        # Calculate Cyclo_TPM_rank and Noncyclo_TPM_rank with average ranking for ties. Should go from 1 to number of patients. The lower the rank, the larger the TPM.
         gene_level_data["Cyclo_TPM_Rank"] = gene_level_data.groupby(gene_group_col)["Cyclo_TPM"].rank(ascending=False, method="average")
         gene_level_data["Noncyclo_TPM_Rank"] = gene_level_data.groupby(gene_group_col)["Noncyclo_TPM"].rank(ascending=False, method="average")
 
