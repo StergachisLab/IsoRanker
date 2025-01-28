@@ -36,7 +36,7 @@ def select_columns(df, test_stat_func, gene_level):
         columns = common_columns + ["NormalizedFractionDifference"]
     elif test_stat_func in [Noncyclo_Expression_Outlier_LOE, Noncyclo_Expression_Outlier_GOE]:
         columns = common_columns + ["Cyclo_TPM_Rank", "Noncyclo_TPM_Rank", "Noncyclo_TPM_Z_Score"]
-    elif test_stat_func in [Cyclo_Expression_Outlier_GOE, Cyclo_Expression_Outlier_LOE]:
+    elif test_stat_func in [Cyclo_Expression_Outlier_GOE]:
         columns = common_columns + ["Cyclo_TPM_Rank", "Noncyclo_TPM_Rank", "Cyclo_TPM_Z_Score"]
     elif test_stat_func == NMD_rare_steady_state_transcript:
         columns = common_columns + ["proportion_in_Bin1_cyclo", "proportion_in_Bin1_noncyclo", "bin_proportion_difference"]
