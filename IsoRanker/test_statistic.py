@@ -149,7 +149,7 @@ def Cyclo_Allelic_Imbalance(group):
         # Calculate the test statistic for this specific sample
         test_statistic = (
             np.log2(row['HP1_cyclo_count']/row['HP2_cyclo_count']) *
-            np.log2(row['HP1_cyclo_count'] + row['HP2_cyclo_count']) *
+            np.log2(row['HP1_cyclo_count'] + row['HP2_cyclo_count'])
         )
         results.append(test_statistic)
     
