@@ -11,11 +11,13 @@ setup(
         "statsmodels>=0.14.4",
         "seaborn>=0.13.2",
         "scipy>=1.15.1",
+        "pyreadr>=0.4.5",
     ],
     entry_points={
         "console_scripts": [
             "run_analysis=IsoRanker.run_analysis:main",
             "run_analysis_top_ranked=IsoRanker.run_analysis_top_ranked:main",
+            "run_analysis_rds=IsoRanker.run_analysis_rds:main",
         ],
     },
     author="Hank Cheng",
