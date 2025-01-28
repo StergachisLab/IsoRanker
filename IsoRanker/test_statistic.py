@@ -131,7 +131,7 @@ def Noncyclo_Allelic_Imbalance(group):
         # Calculate the test statistic for this specific sample
         test_statistic = (
             np.log2(row['HP1_noncyclo_count']/row['HP2_noncyclo_count']) *
-            np.log2(row['HP1_noncyclo_count'] + row['HP2_noncyclo_count']) *
+            np.log2(row['HP1_noncyclo_count'] + row['HP2_noncyclo_count'])
         )
         results.append(test_statistic)
     
