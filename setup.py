@@ -5,7 +5,7 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "pandas>=2.2.3",
+        "pandas>=2.0.0",
         "numpy>=2.2.2",
         "matplotlib>=3.10.0",
         "statsmodels>=0.14.4",
