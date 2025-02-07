@@ -141,6 +141,12 @@ def create_long_format(expression_matrix, sample_info=None):
     aggregated_data["Cyclo_TPM_Rank"] = aggregated_data.groupby("Isoform")["Cyclo_TPM"].rank(ascending=False, method="average")
     aggregated_data["Noncyclo_TPM_Rank"] = aggregated_data.groupby("Isoform")["Noncyclo_TPM"].rank(ascending=False, method="average")
 
+    # Calculate mean and median TPM for each Isoform
+    aggregated_data["Cyclo_TPM_Median"] = aggregated_data.groupby("Isoform")["Cyclo_TPM"].transform("median")
+    aggregated_data["Noncyclo_TPM_Median"] = aggregated_data.groupby("Isoform")["Noncyclo_TPM"].transform("median")
+    aggregated_data["Cyclo_TPM_Mean"] = aggregated_data.groupby("Isoform")["Cyclo_TPM"].transform("mean")
+    aggregated_data["Noncyclo_TPM_Mean"] = aggregated_data.groupby("Isoform")["Noncyclo_TPM"].transform("mean")
+
 
     # Step 8: Drop unnecessary columns.
     # If the haplotype column are all empty or NaN, then we are not evalauting for haplotype separated information so these columns can be dropped.

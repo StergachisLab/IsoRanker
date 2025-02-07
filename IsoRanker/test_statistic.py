@@ -231,6 +231,13 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         # Calculate Cyclo_TPM_rank and Noncyclo_TPM_rank with average ranking for ties. Should go from 1 to number of patients. The lower the rank, the larger the TPM.
         gene_level_data["Cyclo_TPM_Rank"] = gene_level_data.groupby(gene_group_col)["Cyclo_TPM"].rank(ascending=False, method="average")
         gene_level_data["Noncyclo_TPM_Rank"] = gene_level_data.groupby(gene_group_col)["Noncyclo_TPM"].rank(ascending=False, method="average")
+          
+        # Recalculate mean and median TPM
+        gene_level_data["Cyclo_TPM_Median"] = gene_level_data.groupby(gene_group_col)["Cyclo_TPM"].transform("median")
+        gene_level_data["Noncyclo_TPM_Median"] = gene_level_data.groupby(gene_group_col)["Noncyclo_TPM"].transform("median")
+        gene_level_data["Cyclo_TPM_Mean"] = gene_level_data.groupby(gene_group_col)["Cyclo_TPM"].transform("mean")
+        gene_level_data["Noncyclo_TPM_Mean"] = gene_level_data.groupby(gene_group_col)["Noncyclo_TPM"].transform("mean")
+
 
         if test_statistic_func == NMD_rare_steady_state_transcript:
             # Create bins and calculate aggregated values
