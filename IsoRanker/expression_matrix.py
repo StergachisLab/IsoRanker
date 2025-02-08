@@ -64,7 +64,7 @@ def create_long_format(expression_matrix, sample_info=None):
     
     Returns:
     - pd.DataFrame: Aggregated DataFrame with columns: Isoform, Sample, cyclo_count, noncyclo_count,
-                    HP1_cyclo_count, HP2_cyclo_count, HP1_noncyclo_count, HP2_noncyclo_count, Cyclo_TPM, Noncyclo_TPM.
+                    H1_cyclo_count, H2_cyclo_count, H1_noncyclo_count, H2_noncyclo_count, Cyclo_TPM, Noncyclo_TPM.
     """
     # Step 1: Handle the case where no sample_info is provided
     if sample_info is None:
@@ -91,23 +91,23 @@ def create_long_format(expression_matrix, sample_info=None):
     expression_data = expression_data.merge(sample_info, left_on="Sample", right_on="sample", how="left")
 
     # Step 5: Precompute haplotype-specific and cyclo/noncyclo counts
-    expression_data["HP0_cyclo_count"] = (
-        (expression_data["haplotype"] == "HP0") & (expression_data["cyclo"] == "cyclo")
+    expression_data["H0_cyclo_count"] = (
+        (expression_data["haplotype"] == "H0") & (expression_data["cyclo"] == "cyclo")
     ) * expression_data["count"]
-    expression_data["HP1_cyclo_count"] = (
-        (expression_data["haplotype"] == "HP1") & (expression_data["cyclo"] == "cyclo")
+    expression_data["H1_cyclo_count"] = (
+        (expression_data["haplotype"] == "H1") & (expression_data["cyclo"] == "cyclo")
     ) * expression_data["count"]
-    expression_data["HP2_cyclo_count"] = (
-        (expression_data["haplotype"] == "HP2") & (expression_data["cyclo"] == "cyclo")
+    expression_data["H2_cyclo_count"] = (
+        (expression_data["haplotype"] == "H2") & (expression_data["cyclo"] == "cyclo")
     ) * expression_data["count"]
-    expression_data["HP0_noncyclo_count"] = (
-        (expression_data["haplotype"] == "HP0") & (expression_data["cyclo"] == "noncyclo")
+    expression_data["H0_noncyclo_count"] = (
+        (expression_data["haplotype"] == "H0") & (expression_data["cyclo"] == "noncyclo")
     ) * expression_data["count"]
-    expression_data["HP1_noncyclo_count"] = (
-        (expression_data["haplotype"] == "HP1") & (expression_data["cyclo"] == "noncyclo")
+    expression_data["H1_noncyclo_count"] = (
+        (expression_data["haplotype"] == "H1") & (expression_data["cyclo"] == "noncyclo")
     ) * expression_data["count"]
-    expression_data["HP2_noncyclo_count"] = (
-        (expression_data["haplotype"] == "HP2") & (expression_data["cyclo"] == "noncyclo")
+    expression_data["H2_noncyclo_count"] = (
+        (expression_data["haplotype"] == "H2") & (expression_data["cyclo"] == "noncyclo")
     ) * expression_data["count"]
 
     # Precompute raw cyclo and noncyclo counts
@@ -116,12 +116,12 @@ def create_long_format(expression_matrix, sample_info=None):
 
     # Step 6: Aggregate counts by Isoform-Sample
     aggregated_data = expression_data.groupby(["Isoform", "patient"]).agg(
-        HP0_cyclo_count=("HP0_cyclo_count", "sum"),
-        HP1_cyclo_count=("HP1_cyclo_count", "sum"),
-        HP2_cyclo_count=("HP2_cyclo_count", "sum"),
-        HP0_noncyclo_count=("HP0_noncyclo_count", "sum"),
-        HP1_noncyclo_count=("HP1_noncyclo_count", "sum"),
-        HP2_noncyclo_count=("HP2_noncyclo_count", "sum"),
+        H0_cyclo_count=("H0_cyclo_count", "sum"),
+        H1_cyclo_count=("H1_cyclo_count", "sum"),
+        H2_cyclo_count=("H2_cyclo_count", "sum"),
+        H0_noncyclo_count=("H0_noncyclo_count", "sum"),
+        H1_noncyclo_count=("H1_noncyclo_count", "sum"),
+        H2_noncyclo_count=("H2_noncyclo_count", "sum"),
         cyclo_count=("cyclo_count_raw", "sum"),
         noncyclo_count=("noncyclo_count_raw", "sum")
     ).reset_index()
@@ -157,9 +157,9 @@ def create_long_format(expression_matrix, sample_info=None):
 
 
     # Step 8: Drop unnecessary columns.
-    # If the haplotype column are all empty or NaN, or "none", or "HP0", then we are not evalauting for haplotype separated information so these columns can be dropped.
-    if sample_info['haplotype'].replace(['', 'none', "HP0"], float('NaN'), inplace=False).isna().all():
-        aggregated_data = aggregated_data.drop(columns=["HP0_cyclo_count", "HP1_cyclo_count", "HP2_cyclo_count", "HP0_noncyclo_count", "HP1_noncyclo_count", "HP2_noncyclo_count"])
+    # If the haplotype column are all empty or NaN, or "none", or "H0", then we are not evalauting for haplotype separated information so these columns can be dropped.
+    if sample_info['haplotype'].replace(['', 'none', "H0"], float('NaN'), inplace=False).isna().all():
+        aggregated_data = aggregated_data.drop(columns=["H0_cyclo_count", "H1_cyclo_count", "H2_cyclo_count", "H0_noncyclo_count", "H1_noncyclo_count", "H2_noncyclo_count"])
 
     # Step 9: Return the aggregated DataFrame
     return aggregated_data
