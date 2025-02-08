@@ -9,6 +9,8 @@ from .test_statistic import (
     Cyclo_Expression_Outlier_LOE,
     Cyclo_Expression_Outlier_GOE,
     NMD_rare_steady_state_transcript,
+    Noncyclo_Allelic_Imbalance,
+    Cyclo_Allelic_Imbalance,
     process_hypothesis_test
 )
 from .ranking import calculate_ranks_for_sample
