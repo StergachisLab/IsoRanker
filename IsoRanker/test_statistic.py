@@ -229,8 +229,10 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
 
         # Conditionally add H1/H2 columns if they exist
         optional_columns = [
+            "H0_cyclo_count",
             "H1_cyclo_count",
             "H2_cyclo_count",
+            "H0_noncyclo_count",
             "H1_noncyclo_count",
             "H2_noncyclo_count",
         ]
