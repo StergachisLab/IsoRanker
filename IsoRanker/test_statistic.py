@@ -130,16 +130,16 @@ def Noncyclo_Allelic_Imbalance(group):
     for _, row in group.iterrows():
         # Calculate the test statistic for this specific sample
 
-        reads_phased = (row['HP1_noncyclo_count'] + row['HP2_noncyclo_count'])
-        proportion_phased = reads_phased / (reads_phased + row['HP0_noncyclo_count'])
+        reads_phased = (row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
+        proportion_phased = reads_phased / (reads_phased + row['H0_noncyclo_count'])
 
         #If the proportion phased is too small, then the test stat can't be calculated.
         if (proportion_phased < 0.1) | (reads_phased < 10):
             test_statistic = 0
         else:
             test_statistic = abs(
-                np.log2((row['HP1_noncyclo_count']+1) / (row['HP2_noncyclo_count']+1)) *
-                np.log2(row['HP1_noncyclo_count'] + row['HP2_noncyclo_count'])
+                np.log2((row['H1_noncyclo_count']+1) / (row['H2_noncyclo_count']+1)) *
+                np.log2(row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
             )
 
         results.append(test_statistic)
@@ -157,16 +157,16 @@ def Cyclo_Allelic_Imbalance(group):
     for _, row in group.iterrows():
         # Calculate the test statistic for this specific sample
 
-        reads_phased = (row['HP1_cyclo_count'] + row['HP2_cyclo_count'])
-        proportion_phased = reads_phased / (reads_phased + row['HP0_cyclo_count'])
+        reads_phased = (row['H1_cyclo_count'] + row['H2_cyclo_count'])
+        proportion_phased = reads_phased / (reads_phased + row['H0_cyclo_count'])
 
         #If the proportion phased is too small, then the test stat can't be calculated.
         if (proportion_phased < 0.1) | (reads_phased < 10):
             test_statistic = 0
         else:
             test_statistic = abs(
-                np.log2((row['HP1_cyclo_count']+1) / (row['HP2_cyclo_count']+1)) *
-                np.log2(row['HP1_cyclo_count'] + row['HP2_cyclo_count'])
+                np.log2((row['H1_cyclo_count']+1) / (row['H2_cyclo_count']+1)) *
+                np.log2(row['H1_cyclo_count'] + row['H2_cyclo_count'])
             )
 
         results.append(test_statistic)
@@ -227,12 +227,12 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             "total_noncyclo": ("total_noncyclo", "first"),
         }
 
-        # Conditionally add HP1/HP2 columns if they exist
+        # Conditionally add H1/H2 columns if they exist
         optional_columns = [
-            "HP1_cyclo_count",
-            "HP2_cyclo_count",
-            "HP1_noncyclo_count",
-            "HP2_noncyclo_count",
+            "H1_cyclo_count",
+            "H2_cyclo_count",
+            "H1_noncyclo_count",
+            "H2_noncyclo_count",
         ]
         for col in optional_columns:
             if col in filtered_data.columns:
@@ -336,13 +336,13 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         ) / processed_data["SD_Cyclo_TPM"]
     elif test_statistic_func == Noncyclo_Allelic_Imbalance:
         processed_data["NoncycloHaplotypeDifference"] = (
-            (processed_data["HP1_noncyclo_count"] - processed_data["HP2_noncyclo_count"]) / 
-            (processed_data["HP1_noncyclo_count"] + processed_data["HP2_noncyclo_count"])
+            (processed_data["H1_noncyclo_count"] - processed_data["H2_noncyclo_count"]) / 
+            (processed_data["H1_noncyclo_count"] + processed_data["H2_noncyclo_count"])
         )
     elif test_statistic_func == Cyclo_Allelic_Imbalance:
         processed_data["CycloHaplotypeDifference"] = (
-            (processed_data["HP1_cyclo_count"] - processed_data["HP2_cyclo_count"]) / 
-            (processed_data["HP1_cyclo_count"] + processed_data["HP2_cyclo_count"])
+            (processed_data["H1_cyclo_count"] - processed_data["H2_cyclo_count"]) / 
+            (processed_data["H1_cyclo_count"] + processed_data["H2_cyclo_count"])
         )
 
     # Apply hypothesis test
