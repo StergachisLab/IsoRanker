@@ -130,13 +130,14 @@ def Noncyclo_Allelic_Imbalance(group):
     for _, row in group.iterrows():
         # Calculate the test statistic for this specific sample
 
-        proportion_phased = (row['HP1_noncyclo_count'] + row['HP2_noncyclo_count']) / (row['HP1_noncyclo_count'] + row['HP2_noncyclo_count'] + row['HP0_noncyclo_count'])
+        reads_phased = (row['HP1_noncyclo_count'] + row['HP2_noncyclo_count'])
+        proportion_phased = reads_phased / (reads_phased + row['HP0_noncyclo_count'])
 
         #If the proportion phased is too small, then the test stat can't be calculated.
-        if proportion_phased < 0.1:
+        if (proportion_phased < 0.1) | (reads_phased < 10):
             test_statistic = 0
         else:
-            test_statistic = (
+            test_statistic = abs(
                 np.log2((row['HP1_noncyclo_count']+1) / (row['HP2_noncyclo_count']+1)) *
                 np.log2(row['HP1_noncyclo_count'] + row['HP2_noncyclo_count'])
             )
@@ -155,10 +156,19 @@ def Cyclo_Allelic_Imbalance(group):
     results = []
     for _, row in group.iterrows():
         # Calculate the test statistic for this specific sample
-        test_statistic = (
-            np.log2((row['HP1_cyclo_count']+1) / (row['HP2_cyclo_count']+1)) *
-            np.log2(row['HP1_cyclo_count'] + row['HP2_cyclo_count'])
-        )
+
+        reads_phased = (row['HP1_cyclo_count'] + row['HP2_cyclo_count'])
+        proportion_phased = reads_phased / (reads_phased + row['HP0_cyclo_count'])
+
+        #If the proportion phased is too small, then the test stat can't be calculated.
+        if (proportion_phased < 0.1) | (reads_phased < 10):
+            test_statistic = 0
+        else:
+            test_statistic = abs(
+                np.log2((row['HP1_cyclo_count']+1) / (row['HP2_cyclo_count']+1)) *
+                np.log2(row['HP1_cyclo_count'] + row['HP2_cyclo_count'])
+            )
+
         results.append(test_statistic)
     
     # Assign the calculated test statistics back to the group
