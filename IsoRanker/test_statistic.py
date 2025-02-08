@@ -131,7 +131,7 @@ def Noncyclo_Allelic_Imbalance(group):
         # Calculate the test statistic for this specific sample
 
         reads_phased = (row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
-        proportion_phased = reads_phased / (reads_phased + row['H0_noncyclo_count'])
+        proportion_phased = (reads_phased + 1) / (reads_phased + row['H0_noncyclo_count'] + 1)
 
         #If the proportion phased is too small, then the test stat can't be calculated.
         if (proportion_phased < 0.1) | (reads_phased < 10):
@@ -158,7 +158,7 @@ def Cyclo_Allelic_Imbalance(group):
         # Calculate the test statistic for this specific sample
 
         reads_phased = (row['H1_cyclo_count'] + row['H2_cyclo_count'])
-        proportion_phased = reads_phased / (reads_phased + row['H0_cyclo_count'])
+        proportion_phased = (reads_phased + 1) / (reads_phased + row['H0_cyclo_count'] + 1)
 
         #If the proportion phased is too small, then the test stat can't be calculated.
         if (proportion_phased < 0.1) | (reads_phased < 10):
