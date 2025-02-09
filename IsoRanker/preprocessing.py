@@ -82,9 +82,13 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
             except pd.errors.EmptyDataError:
                 print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
 
+    # Update read_stats based on haplotype_dict
     def modify_id(row):
         read_id = row["id"]
-        haplotype = haplotype_dict.get(read_id, "H0")  # Default to "H0" if not found
+        haplotype = haplotype_dict.get(read_id, "none")
+        # If haplotype is "none", update it to "HP0"
+        if haplotype == "none":
+            haplotype = "H0"
         return f"{read_id.split('_')[0]}{haplotype}_{'_'.join(read_id.split('_')[1:])}"
 
     # Update read_stats based on haplotype_dict
