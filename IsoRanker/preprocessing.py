@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_stats_path, output_dir):
+def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_stats_path, output_dir) -> None:
     """
     Update read statistics and sample information files with haplotype data.
     
@@ -114,46 +114,6 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     updated_sample_info_df.to_csv(updated_sample_info_path, index=False)
 
     print(f"Updated sample info saved to {updated_sample_info_path}", flush=True)
-
-
-    # Update read_stats based on haplotype_dict
-    def modify_id(row):
-        read_id = row["id"]
-        haplotype = haplotype_dict.get(read_id, "none")
-        # If haplotype is "none", update it to "HP0"
-        if haplotype == "none":
-            haplotype = "H0"
-        return f"{read_id.split('_')[0]}{haplotype}_{'_'.join(read_id.split('_')[1:])}"
-
-
-    read_stats["id"] = read_stats.apply(modify_id, axis=1)
-
-    # Save updated read_stats
-    updated_read_stats_path = "updated_read_stats.txt"
-    read_stats.to_csv(updated_read_stats_path, sep="\t", index=False)
-    
-    print(f"Updated read_stats saved to {updated_read_stats_path}", flush=True)
-
-    # Update sample_info with new sample names
-    updated_sample_info = []
-
-    for _, row in sample_info.iterrows():
-        sample, patient, cyclo, haplotype = row["sample"], row["patient"], row["cyclo"], row["haplotype"]
-        
-        if pd.notna(haplotype) and haplotype.strip():
-            updated_sample_info.append([f"{sample}H0", patient, cyclo, "H0"])
-            updated_sample_info.append([f"{sample}H1", patient, cyclo, "H1"])
-            updated_sample_info.append([f"{sample}H2", patient, cyclo, "H2"])
-        else:
-            updated_sample_info.append([f"{sample}H0", patient, cyclo, "H0"])
-
-    # Convert to DataFrame and save
-    updated_sample_info_df = pd.DataFrame(updated_sample_info, columns=["sample", "patient", "cyclo", "haplotype"])
-    updated_sample_info_path = "updated_sample_info.csv"
-    updated_sample_info_df.to_csv(updated_sample_info_path, index=False)
-
-    print(f"Updated sample_info saved to {updated_sample_info_path}", flush=True)
-
 
 
 def filter_based_on_counts(df, count_threshold=10, group_col='Isoform'):
