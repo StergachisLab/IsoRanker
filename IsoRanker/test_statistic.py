@@ -358,6 +358,7 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     if filter_before_ranking == True:
         if test_statistic_func == NMD_rare_steady_state_transcript:
             processed_data = processed_data[processed_data["bin_proportion_difference"] > 0]
+            processed_data = processed_data[processed_data["Total_bin_cyclo_count_Bin1_le"] > 10]
         elif test_statistic_func == NMD_test_statistic:
             processed_data = processed_data[processed_data["NormalizedFractionDifference"] > 0]
         elif test_statistic_func == Noncyclo_Expression_Outlier_LOE:
