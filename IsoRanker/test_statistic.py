@@ -1,5 +1,7 @@
 import numpy as np
 
+from .preprocessing import filter_based_on_counts
+
 from .calculations import apply_hypothesis_test
 
 from .z_score import calculate_z_score
@@ -176,7 +178,7 @@ def Cyclo_Allelic_Imbalance(group):
     return group
 
 
-def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_group_col=None, gene_level=True, bin_proportion=0.01, filter_before_ranking=True):
+def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_group_col=None, gene_level=True, bin_proportion=0.01, filter_before_ranking=True, filter_count_threshold=10):
     """
     Combine hypothesis testing, z-score calculation, ranking, and additional metrics into a single function.
     
@@ -347,13 +349,12 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             (processed_data["H1_cyclo_count"] + processed_data["H2_cyclo_count"])
         )
 
-    # Apply hypothesis test
-    tested_data = apply_hypothesis_test(processed_data, group_col=gene_group_col if gene_level else group_col, test_statistic_func=test_statistic_func)
-    
-    # Calculate z-scores
-    z_scored_data = calculate_z_score(tested_data, group_col=gene_group_col if gene_level else group_col, stat_col="test_statistic")
-    
     #Filter before ranking
+    if gene_level == True:
+        processed_data = filter_based_on_counts(processed_data, count_threshold=filter_count_threshold, group_col=gene_group_col)
+    else:
+        processed_data = filter_based_on_counts(processed_data, count_threshold=filter_count_threshold, group_col=group_col)
+    
     if filter_before_ranking == True:
         if test_statistic_func == NMD_rare_steady_state_transcript:
             processed_data = processed_data[processed_data["bin_proportion_difference"] > 0]
@@ -368,6 +369,11 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         elif test_statistic_func == Cyclo_Expression_Outlier_GOE:
             processed_data = processed_data[processed_data["Cyclo_TPM_Z_Score"] > 0]
 
+    # Apply hypothesis test
+    tested_data = apply_hypothesis_test(processed_data, group_col=gene_group_col if gene_level else group_col, test_statistic_func=test_statistic_func)
+    
+    # Calculate z-scores
+    z_scored_data = calculate_z_score(tested_data, group_col=gene_group_col if gene_level else group_col, stat_col="test_statistic")
 
     # Calculate ranks
     ranked_data = calculate_ranks_for_sample(z_scored_data, group_col=gene_group_col if gene_level else group_col)
