@@ -363,18 +363,18 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     #Filter before ranking
     if filter_before_ranking == True:
         if test_statistic_func == NMD_rare_steady_state_transcript:
-            processed_data = processed_data[processed_data["bin_proportion_difference"] > 0]
-            processed_data = processed_data[processed_data["Total_bin_cyclo_count_Bin1_le"] > 10]
+            z_scored_data = z_scored_data[z_scored_data["bin_proportion_difference"] > 0]
+            z_scored_data = z_scored_data[z_scored_data["Total_bin_cyclo_count_Bin1_le"] > 10]
         elif test_statistic_func == NMD_test_statistic:
-            processed_data = processed_data[processed_data["NormalizedFractionDifference"] > 0]
+            z_scored_data = z_scored_data[z_scored_data["NormalizedFractionDifference"] > 0]
         elif test_statistic_func == Noncyclo_Expression_Outlier_LOE:
-            processed_data = processed_data[processed_data["Noncyclo_TPM_Z_Score"] < 0]
+            z_scored_data = z_scored_data[z_scored_data["Noncyclo_TPM_Z_Score"] < 0]
         elif test_statistic_func == Noncyclo_Expression_Outlier_GOE:
-            processed_data = processed_data[processed_data["Noncyclo_TPM_Z_Score"] > 0]
+            z_scored_data = z_scored_data[z_scored_data["Noncyclo_TPM_Z_Score"] > 0]
         elif test_statistic_func == Cyclo_Expression_Outlier_LOE:
-            processed_data = processed_data[processed_data["Cyclo_TPM_Z_Score"] < 0]
+            z_scored_data = z_scored_data[z_scored_data["Cyclo_TPM_Z_Score"] < 0]
         elif test_statistic_func == Cyclo_Expression_Outlier_GOE:
-            processed_data = processed_data[processed_data["Cyclo_TPM_Z_Score"] > 0]
+            z_scored_data = z_scored_data[z_scored_data["Cyclo_TPM_Z_Score"] > 0]
 
     # Calculate ranks
     ranked_data = calculate_ranks_for_sample(z_scored_data, group_col=gene_group_col if gene_level else group_col)
