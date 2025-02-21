@@ -12,6 +12,8 @@ setup(
         "seaborn>=0.13.2",
         "scipy>=1.15.1",
         "pyreadr>=0.4.5",
+        "pysam>=0.22.0",
+        "pyhpo>=3.3.0"
     ],
     entry_points={
         "console_scripts": [

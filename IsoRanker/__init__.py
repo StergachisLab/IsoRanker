@@ -21,4 +21,10 @@ from .expression_matrix import (
     create_expression_matrix,
     create_long_format
 )
+from .post_rankings_annotations import (
+    merge_csvs_by_keyword, 
+    process_vep_vcf, 
+    merge_haplotype_data, 
+    process_phenotype_data
+)
 
