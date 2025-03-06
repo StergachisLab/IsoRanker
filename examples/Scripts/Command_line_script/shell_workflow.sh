@@ -10,7 +10,7 @@ conda activate testing_isoranker
 
 pip install git+https://github.com/yhhc2/IsoRanker.git
 
-run_analysis \
+isoranker_run_analysis \
   --read_stat_path ./IsoRanker/examples/Input/read_stats.txt \
   --sample_info_path ./IsoRanker/examples/Input/Sample_info.csv \
   --classification_path ./IsoRanker/examples/Input/filtered_classification.txt \
