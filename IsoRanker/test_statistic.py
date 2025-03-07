@@ -18,7 +18,7 @@ def NMD_test_statistic(group):
     for _, row in group.iterrows():
         # Calculate the test statistic for this specific sample
         ratio = (row['Cyclo_TPM'] + 1) / (row['Noncyclo_TPM'] + 1)
-        test_statistic = np.log2(ratio) * np.log2(row['cyclo_count'] + 2)
+        test_statistic = np.log2(ratio) * np.log2(row['Cyclo_TPM'] + 2)
         results.append(test_statistic)
     
     # Assign the calculated test statistics back to the group
