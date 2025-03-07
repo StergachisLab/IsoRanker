@@ -75,6 +75,9 @@ def main():
         ("NMD_rare_steady_state_transcript", NMD_rare_steady_state_transcript)
     ]
 
+    # Store full results to generate lookup table
+    full_ranked_gene_data = []
+
     # Run gene-level analysis
     for test_name, test_func in test_stat_funcs:
         print(f"Processing test statistic: {test_name}", flush=True)
@@ -87,10 +90,11 @@ def main():
             bin_proportion=0.01
         )
 
-        #rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
-        #filtered_ranked_data = ranked_data[ranked_data[rank_columns].le(1000).any(axis=1)]
+        # Append tuple (test_name, ranked_data) to the list
+        full_ranked_gene_data.append((test_name, ranked_data))
 
-        filtered_ranked_data = ranked_data
+        #rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
+        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 20]
 
         filtered_ranked_data = filtered_ranked_data.merge(
             genemap[['Approved Gene Symbol', 'Phenotypes']],
@@ -117,6 +121,7 @@ def main():
 
         #rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
         #filtered_ranked_data = ranked_data[ranked_data[rank_columns].le(1000).any(axis=1)]
+        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 20]
 
         filtered_ranked_data = ranked_data
 
@@ -130,6 +135,43 @@ def main():
         output_file = os.path.join(output_dir, f"{test_name}_isoform_data.csv")
         filtered_ranked_data.to_csv(output_file, index=False)
         print(f"Results saved to {output_file}", flush=True)
+
+
+    ################################
+    # Create lookup tables
+    ################################
+
+    # Collapse long_format_annotated by summing TPM values per Sample and Gene
+    sample_gene_rankings_lookup_table = long_format_annotated.groupby(["Sample", "associated_gene"], as_index=False).agg(
+        {"Cyclo_TPM": "sum", "Noncyclo_TPM": "sum"}
+    )
+
+    # Now merge the ranked gene-level data
+    for test_name, df in full_ranked_gene_data:
+        # Rename rank column to be test-specific
+        df_renamed = df.rename(columns={"rank_top_99_5_percentile": f"{test_name}_rank_top_99_5_percentile"})
+
+        # Keep only relevant columns
+        df_renamed = df_renamed[["Sample", "associated_gene", f"{test_name}_rank_top_99_5_percentile"]]
+
+        # Merge into merged_df using outer join
+        sample_gene_rankings_lookup_table = pd.merge(sample_gene_rankings_lookup_table, df_renamed, on=["Sample", "associated_gene"], how="outer")
+
+    # Save as a compressed CSV (gzip format)
+    sample_gene_rankings_lookup_table.to_csv("sample_gene_rankings_lookup_table.csv.gz", index=False, compression="gzip")
+
+    # Group by gene (associated_gene) and compute median, Q1 (25th percentile), and Q3 (75th percentile)
+    gene_coverage_lookup_table = sample_gene_rankings_lookup_table.groupby("associated_gene").agg(
+        Cyclo_TPM_median=("Cyclo_TPM", "median"),
+        Cyclo_TPM_Q1=("Cyclo_TPM", lambda x: x.quantile(0.25)),  # 25th percentile
+        Cyclo_TPM_Q3=("Cyclo_TPM", lambda x: x.quantile(0.75)),  # 75th percentile
+
+        Noncyclo_TPM_median=("Noncyclo_TPM", "median"),
+        Noncyclo_TPM_Q1=("Noncyclo_TPM", lambda x: x.quantile(0.25)),  # 25th percentile
+        Noncyclo_TPM_Q3=("Noncyclo_TPM", lambda x: x.quantile(0.75))   # 75th percentile
+    ).reset_index()
+
+    gene_coverage_lookup_table.to_csv("gene_coverage_lookup_table.csv.gz", index=False, compression="gzip")
 
 
 if __name__ == "__main__":
