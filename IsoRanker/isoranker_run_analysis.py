@@ -165,10 +165,14 @@ def main():
         Cyclo_TPM_median=("Cyclo_TPM", "median"),
         Cyclo_TPM_Q1=("Cyclo_TPM", lambda x: x.quantile(0.25)),  # 25th percentile
         Cyclo_TPM_Q3=("Cyclo_TPM", lambda x: x.quantile(0.75)),  # 75th percentile
+        Cyclo_TPM_min=("Cyclo_TPM", "min"),  # Minimum value
+        Cyclo_TPM_max=("Cyclo_TPM", "max"),  # Maximum value
 
         Noncyclo_TPM_median=("Noncyclo_TPM", "median"),
         Noncyclo_TPM_Q1=("Noncyclo_TPM", lambda x: x.quantile(0.25)),  # 25th percentile
-        Noncyclo_TPM_Q3=("Noncyclo_TPM", lambda x: x.quantile(0.75))   # 75th percentile
+        Noncyclo_TPM_Q3=("Noncyclo_TPM", lambda x: x.quantile(0.75)),  # 75th percentile
+        Noncyclo_TPM_min=("Noncyclo_TPM", "min"),  # Minimum value
+        Noncyclo_TPM_max=("Noncyclo_TPM", "max")   # Maximum value
     ).reset_index()
 
     gene_coverage_lookup_table.to_csv("gene_coverage_lookup_table.csv.gz", index=False, compression="gzip")
