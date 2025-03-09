@@ -94,7 +94,7 @@ def main():
         full_ranked_gene_data.append((test_name, ranked_data))
 
         #rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
-        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 20]
+        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
 
         filtered_ranked_data = filtered_ranked_data.merge(
             genemap[['Approved Gene Symbol', 'Phenotypes']],
@@ -121,7 +121,7 @@ def main():
 
         #rank_columns = [col for col in ranked_data.columns if col.startswith('rank_top_')]
         #filtered_ranked_data = ranked_data[ranked_data[rank_columns].le(1000).any(axis=1)]
-        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 20]
+        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
 
         filtered_ranked_data = ranked_data
 
