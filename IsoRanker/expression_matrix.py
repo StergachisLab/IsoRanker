@@ -1,19 +1,23 @@
 import pandas as pd
 from collections import defaultdict
+import gzip
 
 def parse_read_stats(file_path):
     """
-    Parse the read_stats.txt file to extract sample and PB identifiers.
+    Parse the read_stats.txt or read_stats.txt.gz file to extract sample and PB identifiers.
 
     Parameters:
-    - file_path: Path to the read_stats.txt file.
+    - file_path (str): Path to the read_stats.txt or read_stats.txt.gz file.
 
     Returns:
-    - A nested dictionary with PB identifiers as keys and sample counts as values.
+    - dict: A nested dictionary with PB identifiers as keys and sample counts as values.
     """
     counts = defaultdict(lambda: defaultdict(int))
     
-    with open(file_path, 'r') as f:
+    # Detect if the file is gzipped and open accordingly
+    open_func = gzip.open if file_path.endswith(".gz") else open
+    
+    with open_func(file_path, 'rt') as f:  # 'rt' mode ensures text reading
         for line in f:
             # Split the line into components
             read, pb_id = line.strip().split()
@@ -25,6 +29,7 @@ def parse_read_stats(file_path):
             counts[pb_id][sample] += 1
     
     return counts
+
 
 def create_expression_matrix(file_path, output_file=None):
     """
