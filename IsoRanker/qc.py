@@ -40,6 +40,7 @@ def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col = "associat
     - PCA is performed with two components.
     - The PCA plot is colored by treatment condition (Cyclo in red, Noncyclo in blue).
     - The plot is saved as a PDF at the specified `output_pdf` path.
+    - Hg38 SRSF6 example usage: process_pileup(df=input_df, reference_fasta="/gscratch/stergachislab/assemblies/simple-names/hg38.fa", chromosome="chr20", position=43459200, output_file="SRSF6.csv.gz")
     """
 
     df_filtered = filter_based_on_counts(df, count_threshold=10, group_col=grouping_col)
