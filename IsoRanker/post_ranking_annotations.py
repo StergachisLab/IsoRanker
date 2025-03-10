@@ -434,7 +434,7 @@ def process_phenotype_data(hpo_file, genemap_file, probands_file, output_prefix=
     )
 
     # Save results
-    all_comparisons.to_csv(f"{output_prefix}.tsv", sep='\t')
-    all_comparisons_long.to_csv(f"{output_prefix}_longFormat.tsv", sep='\t', index=False)
+    all_comparisons.to_csv(f"{output_prefix}.csv.gz", compression = "gzip")
+    all_comparisons_long.to_csv(f"{output_prefix}_longFormat.csv.gz", index=False, compression = "gzip")
 
     return all_comparisons, all_comparisons_long

@@ -49,8 +49,8 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     read_stats.drop(columns=["haplotype"], inplace=True)
 
     # Save updated read_stats
-    updated_read_stats_path = os.path.join(output_dir, "updated_read_stats.txt")
-    read_stats.to_csv(updated_read_stats_path, sep="\t", index=False)
+    updated_read_stats_path = os.path.join(output_dir, "updated_read_stats.txt.gz")
+    read_stats.to_csv(updated_read_stats_path, sep="\t", index=False, compression = "gzip")
     print(f"Updated read_stats saved to {updated_read_stats_path}", flush=True)
 
     # Update sample_info with haplotype assignments
@@ -68,8 +68,8 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
 
     # Convert to DataFrame and save
     updated_sample_info_df = pd.DataFrame(updated_sample_info, columns=["sample", "patient", "cyclo", "haplotype"])
-    updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.csv")
-    updated_sample_info_df.to_csv(updated_sample_info_path, index=False)
+    updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.csv.gz")
+    updated_sample_info_df.to_csv(updated_sample_info_path, index=False, compression = "gzip")
 
     print(f"Updated sample info saved to {updated_sample_info_path}", flush=True)
 
