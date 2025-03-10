@@ -1,440 +1,177 @@
 import os
-import pysam
+import sys
+import gzip
 import pandas as pd
 import numpy as np
-import re
-from pyhpo import stats, Ontology, HPOSet
+import pysam
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
+def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col = "associated_gene"):
 
-def merge_csvs_by_keyword(directory, keyword, output_csv):
-    """
-    Merges CSV files in the specified directory that contain a given keyword in their filename.
-    The function preserves column order from the first file and includes all columns across files.
-    Adds a column `Source_File` to track the original file for each row.
+    df_filtered = filter_based_on_counts(df, count_threshold=10, group_col=grouping_col)
 
-    Parameters:
-    - directory (str): Path to the directory containing CSV files.
-    - keyword (str): Keyword to match files (e.g., "gene" or "isoform").
-    - output_csv (str): Output file path for the merged CSV.
+    # Group by Sample and associated_gene and sum Cyclo_TPM and Noncyclo_TPM
+    grouped_df = df_filtered.groupby(["Sample", grouping_col])[["Cyclo_TPM", "Noncyclo_TPM"]].sum().reset_index()
+    
+    # Create two separate DataFrames for Cyclo and Noncyclo
+    cyclo_df = grouped_df[["Sample", grouping_col, "Cyclo_TPM"]].copy()
+    noncyclo_df = grouped_df[["Sample", grouping_col, "Noncyclo_TPM"]].copy()
+    
+    # Rename columns
+    cyclo_df.columns = ["Sample", grouping_col, "TPM"]
+    noncyclo_df.columns = ["Sample", grouping_col, "TPM"]
+    
+    # Append _Cyclo and _Noncyclo to Sample names
+    cyclo_df["Sample"] = cyclo_df["Sample"] + "_Cyclo"
+    noncyclo_df["Sample"] = noncyclo_df["Sample"] + "_Noncyclo"
+    
+    # Concatenate the two DataFrames
+    final_df = pd.concat([cyclo_df, noncyclo_df], ignore_index=True)
+    
+    # Pivot table to have Samples as rows and associated_gene as columns
+    pivot_df = final_df.pivot(index="Sample", columns=grouping_col, values="TPM").fillna(0)
 
-    Returns:
-    - None: Saves the merged CSV to the specified output path.
-    """
-
-    csv_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".csv.gz") and keyword.lower() in f.lower()]
-
-    if not csv_files:
-        print(f"No matching files found for keyword '{keyword}'. Skipping...")
-        return
-
-    first_df = pd.read_csv(csv_files[0], compression="gzip")
-    all_columns = list(first_df.columns)
-    all_columns.append("Source_File")
-
-    for file in csv_files[1:]:
-        df = pd.read_csv(file, compression="gzip")
-        new_columns = [col for col in df.columns if col not in all_columns]
-        all_columns.extend(new_columns)
-
-    merged_df = pd.concat(
-        [pd.read_csv(f, compression="gzip").reindex(columns=all_columns).assign(Source_File=os.path.basename(f)) for f in csv_files],
-        ignore_index=True
+    # Standardize the data to match R's prcomp(center=TRUE, scale=TRUE)
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(pivot_df)
+    
+    # Perform PCA
+    pca = PCA(n_components=2)
+    principal_components = pca.fit_transform(scaled_data)
+    
+    # Create DataFrame with PC1 and PC2
+    pca_df = pd.DataFrame(principal_components, columns=["PC1", "PC2"], index=pivot_df.index).reset_index()
+    
+    # Add Cyclo/Noncyclo category
+    pca_df["Condition"] = pca_df["Sample"].apply(lambda x: "Cyclo" if "_Cyclo" in x else "Noncyclo")
+    
+    # Define color mapping
+    color_mapping = {"Cyclo": "red", "Noncyclo": "blue"}
+    
+    # Plot PCA results
+    plt.figure(figsize=(8, 6))
+    ax = sns.scatterplot(
+        data=pca_df, x="PC1", y="PC2", hue="Condition", style="Condition", s=100,
+        palette=color_mapping, markers={"Cyclo": "o", "Noncyclo": "o"}
     )
+    
+    # Add labels to each point
+    for i, row in pca_df.iterrows():
+        ax.text(row["PC1"], row["PC2"], row["Sample"], fontsize=5, ha='right', va='bottom')
+    
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.title("PCA of Samples")
+    plt.legend()
+    
+    # Save the plot to a PDF
+    plt.savefig(output_pdf)
+    plt.close()
+    
+    return pca_df
 
-    merged_df.to_csv(output_csv, index=False, compression="gzip")
-    print(f"Merged {len(csv_files)} '{keyword}' files into: {output_csv}")
 
-
-def process_vep_vcf(vcf_file, output_dir, output_filename):
+def analyze_isoforms(df, output_file, grouping_column):
     """
-    Processes a VEP-annotated VCF file to filter variants, extract genotypes, 
-    and generate structured summary tables including the highest SpliceAI score.
-
+    Analyzes isoform counts for each sample, computing the number of unique genes
+    that pass various read count thresholds.
+    
     Parameters:
-    - vcf_file (str): Path to the input VCF file.
-    - output_dir (str): Directory where output CSV files will be saved.
-    - output_filename (str): Base name for the output files (without extension).
-
+    - df (pd.DataFrame): Input DataFrame with columns ['Sample', grouping_column, 'cyclo_count', 'noncyclo_count']
+    - output_file (str): Path to save the results as a compressed CSV.
+    - grouping_column (str): Column name used to group the counts (e.g., 'associated_gene' or 'Isoform').
+    
     Returns:
-    - df (pd.DataFrame): DataFrame containing all filtered variants.
-    - df_final (pd.DataFrame): DataFrame summarizing variants grouped by gene and haplotype.
+    - None: Saves a compressed CSV file.
     """
 
-    # Make sure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
+    # Step 1: Collapse data by Sample and grouping_column by summing counts
+    grouped_df = df.groupby(["Sample", grouping_column], as_index=False)[["cyclo_count", "noncyclo_count"]].sum()
 
-    # Open VCF
-    vcf = pysam.VariantFile(vcf_file)
+    # Initialize results list
+    results = []
 
-    # Extract CSQ header fields
-    csq_fields = vcf.header.info['CSQ'].description.split(": ")[1].split("|")
+    # Step 2: Iterate through each unique Sample
+    for sample in grouped_df['Sample'].unique():
+        sample_data = grouped_df[grouped_df['Sample'] == sample]
+        
+        # Cyclo analysis after collapsing
+        cyclo_data = sample_data[sample_data['cyclo_count'] > 0]
+        cyclo_total_reads = cyclo_data['cyclo_count'].sum()
+        cyclo_unique = cyclo_data[grouping_column].nunique()
+        cyclo_gt1 = cyclo_data[cyclo_data['cyclo_count'] > 1][grouping_column].nunique()
+        cyclo_gt10 = cyclo_data[cyclo_data['cyclo_count'] > 10][grouping_column].nunique()
+        cyclo_gt100 = cyclo_data[cyclo_data['cyclo_count'] > 100][grouping_column].nunique()
+        cyclo_gt1000 = cyclo_data[cyclo_data['cyclo_count'] > 1000][grouping_column].nunique()
+        
+        # Noncyclo analysis after collapsing
+        noncyclo_data = sample_data[sample_data['noncyclo_count'] > 0]
+        noncyclo_total_reads = noncyclo_data['noncyclo_count'].sum()
+        noncyclo_unique = noncyclo_data[grouping_column].nunique()
+        noncyclo_gt1 = noncyclo_data[noncyclo_data['noncyclo_count'] > 1][grouping_column].nunique()
+        noncyclo_gt10 = noncyclo_data[noncyclo_data['noncyclo_count'] > 10][grouping_column].nunique()
+        noncyclo_gt100 = noncyclo_data[noncyclo_data['noncyclo_count'] > 100][grouping_column].nunique()
+        noncyclo_gt1000 = noncyclo_data[noncyclo_data['noncyclo_count'] > 1000][grouping_column].nunique()
+        
+        # Append results
+        results.append([
+            sample, cyclo_unique, cyclo_total_reads, cyclo_gt1,
+            cyclo_gt10, cyclo_gt100, cyclo_gt1000,
+            noncyclo_unique, noncyclo_total_reads, noncyclo_gt1,
+            noncyclo_gt10, noncyclo_gt100, noncyclo_gt1000
+        ])
+    
+    # Step 3: Create a DataFrame for output
+    output_df = pd.DataFrame(results, columns=[
+        'Sample',
+        f'Cyclo Unique {grouping_column}', 'Cyclo Total Reads', f'Cyclo Unique {grouping_column} >1',
+        f'Cyclo Unique {grouping_column} >10', f'Cyclo Unique {grouping_column} >100', f'Cyclo Unique {grouping_column} >1000',
+        f'Noncyclo Unique {grouping_column}', 'Noncyclo Total Reads', f'Noncyclo Unique {grouping_column} >1',
+        f'Noncyclo Unique {grouping_column} >10', f'Noncyclo Unique {grouping_column} >100', f'Noncyclo Unique {grouping_column} >1000'
+    ])
+    
+    # Step 4: Save to compressed CSV
+    output_df.to_csv(output_file, index=False, compression="gzip")
 
-    variant_data = []
 
-    for record in vcf:
-        chrom = record.chrom
-        pos = record.pos
-        ref = record.ref
-        alts = record.alts
-        qual = record.qual  # Variant quality score
-
-        if qual is None or qual < 30:  # Filter out low-quality variants
-            continue
-
-        # Extract all INFO fields except CSQ
-        variant_info = {key: record.info.get(key, None) for key in vcf.header.info.keys() if key != "CSQ"}
-
-        # Extract CSQ field and create separate rows
-        if "CSQ" in record.info:
-            for csq_entry in record.info["CSQ"]:
-                csq_values = csq_entry.split("|")
-                csq_dict = dict(zip(csq_fields, csq_values))  # Convert CSQ into dictionary
-
-                # Extract MAX_AF safely (handling scientific notation)
-                max_af_str = csq_dict.get("MAX_AF", "1")  # Default to "1" if missing
-                try:
-                    max_af = float(max_af_str)  # Converts both decimal & scientific notation safely
-                except ValueError:
-                    max_af = 1.0  # If conversion fails, default to 1.0
-
-                # Apply MAX_AF filter (removes common variants)
-                if max_af >= 0.01:
-                    continue  # Skip high-frequency variants
-
-                # Extract SpliceAI fields and get the highest SpliceAI score
-                spliceai_columns = [
-                    "SpliceAI_pred_DS_AG", "SpliceAI_pred_DS_AL", "SpliceAI_pred_DS_DG", "SpliceAI_pred_DS_DL"
-                ]
-
-                spliceai_scores = []
-                for col in spliceai_columns:
-                    value = csq_dict.get(col, "0")  # Get value, default to "0" if missing
-                    try:
-                        spliceai_scores.append(float(value))  # Convert safely
-                    except ValueError:
-                        spliceai_scores.append(0)  # Default to 0 if conversion fails
+def process_pileup(df, reference_fasta, chromosome, position, output_file):
+    unique_bams = df.drop_duplicates(subset=['BAM_FILE'])[['SAMPLE', 'ID', 'CYCLO_NONCYCLO', 'BAM_FILE']]
+    
+    results = [["Source", "Chromosome", "Position", "Reference_Base", "Original_Read_Depth", "Adjusted_Read_Depth", "Exonic_Proportion", "Read_Bases", "Base_Qualities"]]
+    
+    for _, row in unique_bams.iterrows():
+        source = f"{row['SAMPLE']}_{row['ID']}_{row['CYCLO_NONCYCLO']}"
+        bam_file = row['BAM_FILE']
+        print(f"Processing BAM file: {bam_file} from source: {source}")
+        
+        if pd.notna(bam_file) and os.path.exists(bam_file):
+            try:
+                samfile = pysam.AlignmentFile(bam_file, "rb")
+                pileup_data = []
                 
-                highest_spliceai_score = max(spliceai_scores)  # Get the highest score
-
-                # Determine SpliceAI Score Category
-                if highest_spliceai_score > 0.5:
-                    spliceai_high_score_flag = "SpliceAI_High_Score"
-                elif highest_spliceai_score > 0.2:
-                    spliceai_high_score_flag = "SpliceAI_Moderate_Score"
-                else:
-                    spliceai_high_score_flag = ""  # Empty if ≤ 0.2
-
-                # Extract SpliceAI_pred_SYMBOL
-                spliceai_pred_symbol = csq_dict.get("SpliceAI_pred_SYMBOL", "")
-
-                # Initialize row with variant and CSQ data
-                variant_entry = {
-                    "CHROM": chrom,
-                    "POS": pos,
-                    "REF": ref,
-                    "ALT": alts[0],
-                    "QUAL": qual,
-                    "MAX_AF": max_af,
-                    "Highest_SpliceAI_Score": highest_spliceai_score,
-                    "SpliceAI_High_Score_Flag": spliceai_high_score_flag,
-                    "SpliceAI_pred_SYMBOL": spliceai_pred_symbol,
-                    **variant_info,  # Add all INFO fields
-                    **csq_dict,  # Add all CSQ fields
-                }
-
-                # Extract genotypes for each sample (handling phased/unphased)
-                for sample in vcf.header.samples:
-                    genotype_tuple = record.samples[sample]["GT"]  # Get GT as a tuple (e.g., (0,1))
-                    is_phased = record.samples[sample].phased  # Check if phased
-
-                    if genotype_tuple is not None:
-                        separator = "|" if is_phased else "/"  # Use "|" for phased, "/" for unphased
-                        genotype_str = separator.join(map(str, genotype_tuple))  # Convert to string
-                    else:
-                        genotype_str = "NA"  # Handle missing genotype
-
-                    variant_entry[f"GT_{sample}"] = genotype_str  # Store GT per sample
-
-                # Append the variant entry to the list
-                variant_data.append(variant_entry)
-
-    # Convert to DataFrame
-    df = pd.DataFrame(variant_data)
-
-    # Save df.csv
-    df_csv_path = os.path.join(output_dir, f"{output_filename}_vcf_vep_filtered.csv")
-    df.to_csv(df_csv_path, index=False)
-    print(f"Saved: {df_csv_path}")
-
-    # Process df to generate df_final
-    required_columns = {"SYMBOL", "HGVSg", "MAX_AF", "CLIN_SIG", "Consequence"}
-    genotype_columns = [col for col in df.columns if col.startswith("GT_")]  # Identify genotype columns
-
-    # Initialize new structure
-    haplotype_data = {}
-
-    # Process each variant in df
-    for _, row in df.iterrows():
-        gene = row["SYMBOL"]
-        hgvs = row["HGVSg"]
-        max_af = row["MAX_AF"]
-        clin_sig = row["CLIN_SIG"]
-        consequence = row["Consequence"]
-        highest_spliceai_score = row["Highest_SpliceAI_Score"]
-        spliceai_high_score_flag = row["SpliceAI_High_Score_Flag"]
-        spliceai_pred_symbol = row["SpliceAI_pred_SYMBOL"]
-
-        # Format the variant string with SpliceAI information
-        variant_info = f"({hgvs},{max_af},{clin_sig},{consequence},{highest_spliceai_score},{spliceai_high_score_flag},{spliceai_pred_symbol})"
-
-        if gene not in haplotype_data:
-            haplotype_data[gene] = {"Hap1": [], "Hap2": [], "Hap0": []}
-
-        for sample in genotype_columns:
-            genotype = row[sample]
-
-            if genotype == "1|0":  # Heterozygous (haplotype 1)
-                haplotype_data[gene]["Hap1"].append(variant_info)
-
-            elif genotype == "0|1":  # Heterozygous (haplotype 2)
-                haplotype_data[gene]["Hap2"].append(variant_info)
-
-            elif genotype == "0/1":  # Unphased heterozygous
-                haplotype_data[gene]["Hap0"].append(variant_info)
-
-            elif genotype == "1/1":  # Homozygous → Include in both Hap1 and Hap2
-                haplotype_data[gene]["Hap1"].append(variant_info)
-                haplotype_data[gene]["Hap2"].append(variant_info)
-
-    # Convert to DataFrame
-    final_data = [
-        {"Gene": gene, 
-         "Hap1": "; ".join(set(data["Hap1"])), 
-         "Hap2": "; ".join(set(data["Hap2"])), 
-         "Hap0": "; ".join(set(data["Hap0"]))}
-        for gene, data in haplotype_data.items()
-    ]
-
-    df_final = pd.DataFrame(final_data)
-
-    # Save df_final.csv
-    df_final_csv_path = os.path.join(output_dir, f"{output_filename}_gene_haplotype_split.csv")
-    df_final.to_csv(df_final_csv_path, index=False)
-    print(f"Saved: {df_final_csv_path}")
-
-    return df, df_final
-
-
-
-def merge_haplotype_data(sample_gene_file, haplotype_patient_file, output_file):
-    """
-    Merges haplotype data into a master file containing Sample and associated_gene.
-
-    Parameters:
-    - sample_gene_file (str): Path to the CSV file containing 'Sample' and 'associated_gene' columns.
-    - haplotype_patient_file (str): Path to the CSV file containing 'Gene', 'Hap1', 'Hap2', 'Hap0', and 'Patient'.
-    - output_file (str): Path to save the merged CSV.
-
-    Returns:
-    - None: Saves the merged CSV to the specified output file.
-    """
-
-    sample_gene_df = pd.read_csv(sample_gene_file)
-    haplotype_df = pd.read_csv(haplotype_patient_file)
-
-    merged_df = sample_gene_df.merge(
-        haplotype_df,
-        left_on=["Sample", "associated_gene"],
-        right_on=["Patient", "Gene"],
-        how="left"
-    ).drop(columns=["Patient", "Gene"], errors="ignore")
-
-    merged_df.to_csv(output_file, index=False)
-    print(f"Merged data saved to: {output_file}")
-
-
-def process_phenotype_data(hpo_file, genemap_file, probands_file, output_prefix="all_proband_by_omim_comparison_ic"):
-    """
-    Processes phenotype, gene, and disease data to compute HPO similarity scores between probands and OMIM diseases.
-
-    Parameters:
-    hpo_file (str): Path to the phenotype.hpoa file.
-    genemap_file (str): Path to the genemap2 file.
-    probands_file (str): Path to the probands file containing 'Sample' and 'Phenotype' columns.
-    output_prefix (str): Prefix for output files. Default is 'all_proband_by_omim_comparison_ic'.
-
-    Outputs:
-    - all_proband_by_omim_comparison_ic.tsv
-    - all_proband_by_omim_comparison_ic_longFormat.tsv
-    """
-
-    # Load HPO annotations
-    hpo = pd.read_csv(hpo_file, sep='\t', comment='#')
-    hpo = hpo[hpo['aspect'].isin(['P', 'H'])][['database_id', 'hpo_id']].drop_duplicates()
-    hpo_dict = hpo.groupby('database_id')['hpo_id'].apply(lambda x: x.unique().tolist()).to_dict()
-
-    # Load and process probands data
-    probands = pd.read_csv(probands_file)[['Sample', 'Phenotype']].drop_duplicates()
-    probands = probands[probands['Phenotype'].notnull()]
-
-    Ontology()  # Load HPO Ontology
-
-    def string_to_hpo(input_list, silent=False):
-        """Convert phenotype terms to HPO terms, handling unknown terms gracefully."""
-        output_list = []
-        for term in input_list:
-            try:
-                hpo_term = str(Ontology.get_hpo_object(term.strip())).split(" | ")[0]
-                output_list.append(hpo_term)
-            except RuntimeError:
-                if not silent:
-                    print(f"Warning: Proband HPO term not found for '{term.strip()}'", flush=True)
-        return output_list if output_list else np.nan  # Return NaN if no terms were found
-
-    probands['hpo_terms'] = probands['Phenotype'].apply(lambda x: string_to_hpo(x.strip().split(",")))
-    probands['hpo_set'] = probands['hpo_terms'].apply(HPOSet.from_queries)
-
-    # Load and process genemap file
-    genemap = pd.read_csv(genemap_file, sep='\t', skiprows=3)  # Read the file, skipping the first 3 rows
-
-    # Extract phenotype details from the 'Phenotypes' column
-    def extract_phenotype_details(phenotype):
-        """Extract phenotype details using regex."""
-        phenotype_pattern = r'^(?:\{|\[)?(.*?)(?:\}|\])?, (\d{6}) \((\d+)\)(?:, )?(.*)?$'
-        match = re.match(phenotype_pattern, phenotype)
-        
-        if match:
-            phenotype_name, omim_num, code, inheritance = match.groups()
+                for pileupcolumn in samfile.pileup(chromosome, position - 1, position, truncate=True, fasta=pysam.FastaFile(reference_fasta)):
+                    ref_base = pileupcolumn.reference_pos
+                    read_depth = pileupcolumn.n
+                    read_bases = ''.join([pileupread.alignment.query_sequence[pileupread.query_position] if pileupread.query_position is not None else '' for pileupread in pileupcolumn.pileups])
+                    base_qualities = ''.join([chr(pileupread.alignment.query_qualities[pileupread.query_position] + 33) if pileupread.query_position is not None else '' for pileupread in pileupcolumn.pileups])
+                    
+                    skip_count = read_bases.count('<') + read_bases.count('>')
+                    adjusted_read_depth = read_depth - skip_count
+                    exonic_proportion = adjusted_read_depth / read_depth if read_depth > 0 else 0
+                    
+                    pileup_data.append([source, chromosome, position, ref_base, read_depth, adjusted_read_depth, round(exonic_proportion, 2), read_bases, base_qualities])
+                
+                samfile.close()
+                results.extend(pileup_data if pileup_data else [[source, chromosome, position, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]])
+            except Exception as e:
+                results.append([source, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", str(e)])
         else:
-            phenotype_name, omim_num, code, inheritance = np.nan, np.nan, np.nan, np.nan
-
-        if inheritance == "":
-            inheritance = np.nan
-        return phenotype_name, omim_num, code, inheritance
-
-    new_rows = []
-    for _, row in genemap.iterrows():
-        phenotypes = row['Phenotypes']
-
-        if pd.isna(phenotypes):
-            new_row = row.to_dict()
-            new_row.update({
-                'PhenotypesExtracted_PhenotypeName': np.nan,
-                'PhenotypesExtracted_OMIMnum': np.nan,
-                'PhenotypesExtracted_code': np.nan,
-                'PhenotypesExtracted_inheritance': np.nan
-            })
-            new_rows.append(new_row)
-        else:
-            for phenotype in phenotypes.split(';'):
-                phenotype = phenotype.strip()
-                phenotype_name, omim_num, code, inheritance = extract_phenotype_details(phenotype)
-                new_row = row.to_dict()
-                new_row.update({
-                    'PhenotypesExtracted_PhenotypeName': phenotype_name,
-                    'PhenotypesExtracted_OMIMnum': omim_num,
-                    'PhenotypesExtracted_code': code,
-                    'PhenotypesExtracted_inheritance': inheritance
-                })
-                new_rows.append(new_row)
-
-    # Create a new DataFrame with extracted phenotype details
-    genemap = pd.DataFrame(new_rows)
-
-    # Keep only genes with known molecular basis (code 3)
-    genemap = genemap[genemap["PhenotypesExtracted_code"] == "3"]
-    genemap = genemap[genemap['Approved Gene Symbol'].notnull()]
-    genemap = genemap[['Approved Gene Symbol', 'PhenotypesExtracted_OMIMnum', 'PhenotypesExtracted_code']].drop_duplicates()
-
-    genemap['PhenotypesExtracted_OMIMnum'] = genemap['PhenotypesExtracted_OMIMnum'].apply(
-        lambda x: f"OMIM:{int(x)}" if pd.notna(x) else x
-    )
-    genemap['HPO_terms'] = genemap['PhenotypesExtracted_OMIMnum'].map(hpo_dict).fillna(np.nan)
-
-    def filter_valid_hpo_terms(hpo_terms):
-        """Filters out invalid HPO terms before creating an HPOSet, logging invalid terms."""
-        if not isinstance(hpo_terms, list) or len(hpo_terms) == 0:
-            return np.nan  # Return NaN if empty or invalid
-        
-        valid_terms = []
-        invalid_terms = []
+            print(f"{bam_file} not found")
+            results.append([source, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
     
-        for term in hpo_terms:
-            try:
-                if Ontology.get_hpo_object(term):  # Ensure term exists
-                    valid_terms.append(term)
-            except RuntimeError:
-                invalid_terms.append(term)  # Log invalid terms
-    
-        # Print invalid terms if any
-        if invalid_terms:
-            print(f"Warning: Invalid genemap HPO terms found and ignored: {invalid_terms}", flush=True)
-    
-        return HPOSet.from_queries(valid_terms) if valid_terms else np.nan  # Return NaN if no valid terms
-
-    # Apply the function safely
-    genemap['HPO_set'] = genemap['HPO_terms'].apply(filter_valid_hpo_terms)
-
-    # Convert HPOSet to a string for deduplication
-    genemap['HPO_set_str'] = genemap['HPO_set'].apply(lambda x: str(x) if isinstance(x, HPOSet) else np.nan)
-
-    # Drop duplicates using both OMIM number and HPO_set_str
-    genemap_by_omim = genemap[['PhenotypesExtracted_OMIMnum', 'HPO_set', 'HPO_set_str']].drop_duplicates(subset=['PhenotypesExtracted_OMIMnum', 'HPO_set_str'])
-
-
-    # Compute similarity scores
-    all_comparisons = pd.DataFrame(index=genemap_by_omim['PhenotypesExtracted_OMIMnum'], columns=probands['Sample'])
-
-    for o in genemap_by_omim.itertuples():
-        for p in probands.itertuples():
-            p_set = p.hpo_set
-            o_set = o.HPO_set
-            similarity = p_set.similarity(o_set, method='ic') if pd.notna(o_set) else np.nan
-            all_comparisons.at[o.PhenotypesExtracted_OMIMnum, p.Sample] = similarity
-
-    all_comparisons_long = all_comparisons.reset_index().melt(
-        id_vars=['PhenotypesExtracted_OMIMnum'], var_name='Sample', value_name='similarity'
-    )
-
-    # Convert OMIM-associated HPO terms to phenotype strings
-    def hpo_codes_to_strings(hpo_terms):
-        """
-        Convert a list of HPO codes to their human-readable phenotype descriptions.
-        
-        Parameters:
-        hpo_terms (list): List of HPO term codes (e.g., ['HP:0001250', 'HP:0004322']).
-        
-        Returns:
-        list: List of human-readable HPO phenotype descriptions.
-        """
-        if not isinstance(hpo_terms, list):
-            return np.nan  # Return NaN if not a list
-        
-        phenotype_strings = []
-        for hpo_code in hpo_terms:
-            try:
-                hpo_object = Ontology.get_hpo_object(hpo_code.strip())
-                phenotype_strings.append(hpo_object.name)  # Extract human-readable name
-            except RuntimeError:
-                continue  # Skip invalid terms
-        
-        return phenotype_strings if phenotype_strings else np.nan  # Return NaN if empty
-
-    # **Add Gene Name, Sample HPO Terms, and OMIM HPO Terms to `all_comparisons_long`**
-    genemap['HPO_terms_OMIM'] = genemap['HPO_terms'].apply(hpo_codes_to_strings)
-    probands['HPO_terms_Sample'] = probands['hpo_terms'].apply(hpo_codes_to_strings)
-    all_comparisons_long = all_comparisons_long.merge(
-        genemap[['PhenotypesExtracted_OMIMnum', 'Approved Gene Symbol', 'HPO_terms_OMIM']],
-        on='PhenotypesExtracted_OMIMnum',
-        how='left'
-    ).merge(
-        probands[['Sample', 'HPO_terms_Sample']],
-        on='Sample',
-        how='left'
-    )
-
-    # Save results
-    all_comparisons.to_csv(f"{output_prefix}.csv.gz", compression = "gzip")
-    all_comparisons_long.to_csv(f"{output_prefix}_longFormat.csv.gz", index=False, compression = "gzip")
-
-    return all_comparisons, all_comparisons_long
+    df_output = pd.DataFrame(results[1:], columns=results[0])
+    df_output.to_csv(output_file, sep='\t', index=False)
+    print(f"Processing complete. Results saved to {output_file}")
