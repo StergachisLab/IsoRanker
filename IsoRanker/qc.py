@@ -169,9 +169,42 @@ def analyze_isoforms(df, output_file, grouping_column):
 
 
 def process_pileup(df, reference_fasta, chromosome, position, output_file):
+    """
+    Processes pileup data from BAM files for a specific genomic position, extracting read depth, 
+    nucleotide composition, and base qualities.
+
+    Parameters:
+    - df (pd.DataFrame): Input DataFrame containing sample and BAM file information. 
+                         Expected columns: ['SAMPLE', 'ID', 'CYCLO_NONCYCLO', 'BAM_FILE']
+    - reference_fasta (str): Path to the reference FASTA file, used to retrieve the reference base.
+    - chromosome (str): Chromosome name (e.g., 'chr1', '2', 'X') for the pileup analysis.
+    - position (int): 1-based genomic position at which pileup data is collected.
+    - output_file (str): Path to save the results as a compressed CSV (gzip format).
+
+    Returns:
+    - None: Saves a compressed CSV file with columns:
+        - 'Source': Unique identifier combining 'SAMPLE', 'ID', and 'CYCLO_NONCYCLO'.
+        - 'Chromosome': Chromosome name.
+        - 'Position': Genomic position (1-based).
+        - 'Reference_Base': Reference nucleotide at this position.
+        - 'Original_Read_Depth': Total number of reads covering the position.
+        - 'Exon_Read_Depth': Number of reads containing an exonic nucleotide (A, C, T, or G).
+        - 'Exonic_Proportion': Proportion of exonic reads (Exon_Read_Depth / Original_Read_Depth).
+        - 'Read_Bases': String of bases observed at this position.
+        - 'Base_Qualities': ASCII-encoded Phred quality scores.
+
+    Notes:
+    - Uses `pysam.AlignmentFile.pileup()` to extract pileup data from BAM files.
+    - Reference bases are obtained from the provided FASTA file.
+    - Reads that contain deletions or are soft-clipped at this position are ignored.
+    - Assumes that **A, C, T, G** bases represent exonic reads.
+    - If a BAM file does not exist, an "N/A" row is added to the results.
+    - Errors encountered during processing are logged in the output file.
+    """
+
     unique_bams = df.drop_duplicates(subset=['BAM_FILE'])[['SAMPLE', 'ID', 'CYCLO_NONCYCLO', 'BAM_FILE']]
     
-    results = [["Source", "Chromosome", "Position", "Reference_Base", "Original_Read_Depth", "Adjusted_Read_Depth", "Exonic_Proportion", "Read_Bases", "Base_Qualities"]]
+    results = [["Source", "Chromosome", "Position", "Reference_Base", "Original_Read_Depth", "Exon_Read_Depth", "Exonic_Proportion", "Read_Bases", "Base_Qualities"]]
     
     for _, row in unique_bams.iterrows():
         source = f"{row['SAMPLE']}_{row['ID']}_{row['CYCLO_NONCYCLO']}"
@@ -189,11 +222,10 @@ def process_pileup(df, reference_fasta, chromosome, position, output_file):
                     read_bases = ''.join([pileupread.alignment.query_sequence[pileupread.query_position] if pileupread.query_position is not None else '' for pileupread in pileupcolumn.pileups])
                     base_qualities = ''.join([chr(pileupread.alignment.query_qualities[pileupread.query_position] + 33) if pileupread.query_position is not None else '' for pileupread in pileupcolumn.pileups])
                     
-                    skip_count = read_bases.count('<') + read_bases.count('>')
-                    adjusted_read_depth = read_depth - skip_count
-                    exonic_proportion = adjusted_read_depth / read_depth if read_depth > 0 else 0
+                    exon_read_count = read_bases.count('A') + read_bases.count('C') + read_bases.count('T') + read_bases.count('G')
+                    exonic_proportion = exon_read_count / read_depth if read_depth > 0 else 0
                     
-                    pileup_data.append([source, chromosome, position, ref_base, read_depth, adjusted_read_depth, round(exonic_proportion, 2), read_bases, base_qualities])
+                    pileup_data.append([source, chromosome, position, ref_base, read_depth, exon_read_count, round(exonic_proportion, 2), read_bases, base_qualities])
                 
                 samfile.close()
                 results.extend(pileup_data if pileup_data else [[source, chromosome, position, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]])
@@ -203,6 +235,7 @@ def process_pileup(df, reference_fasta, chromosome, position, output_file):
             print(f"{bam_file} not found")
             results.append([source, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
     
+        
     df_output = pd.DataFrame(results[1:], columns=results[0])
-    df_output.to_csv(output_file, sep='\t', index=False)
+    df_output.to_csv(output_file, index=False, compression = "gzip")
     print(f"Processing complete. Results saved to {output_file}")
