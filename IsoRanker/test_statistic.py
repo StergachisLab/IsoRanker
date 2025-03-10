@@ -360,8 +360,15 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     # Calculate z-scores
     z_scored_data = calculate_z_score(tested_data, group_col=gene_group_col if gene_level else group_col, stat_col="test_statistic")
 
+
     #Filter before ranking
     if filter_before_ranking == True:
+        
+        # Filter out minor isoforms (except when doing LOE analysis)
+        if not gene_level and test_statistic_func not in {Noncyclo_Expression_Outlier_LOE, Cyclo_Expression_Outlier_LOE}:
+            z_scored_data = z_scored_data[(z_scored_data["isoform_cyclo_proportion"] > 0.1) | 
+                                          (z_scored_data["isoform_noncyclo_proportion"] > 0.1)]
+
         if test_statistic_func == NMD_rare_steady_state_transcript:
             z_scored_data = z_scored_data[z_scored_data["bin_proportion_difference"] > 0]
             z_scored_data = z_scored_data[z_scored_data["Total_bin_cyclo_count_Bin1_le"] > 10]
