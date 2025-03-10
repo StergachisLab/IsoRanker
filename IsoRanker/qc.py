@@ -9,6 +9,11 @@ import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
+from IsoRanker import (
+    filter_based_on_counts
+)
+
+
 def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col = "associated_gene"):
     """
     Performs principal component analysis (PCA) on transcript expression data and generates a PCA plot.
