@@ -27,4 +27,8 @@ from .post_ranking_annotations import (
     merge_haplotype_data, 
     process_phenotype_data
 )
-
+from .qc import(
+    process_and_plot_pca,
+    analyze_isoforms,
+    process_pileup
+)

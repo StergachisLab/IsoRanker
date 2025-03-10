@@ -13,7 +13,8 @@ setup(
         "scipy>=1.15.1",
         "pyreadr>=0.4.5",
         "pysam>=0.22.0",
-        "pyhpo>=3.3.0"
+        "pyhpo>=3.3.0",
+        "scikit-learn>=1.6.0"
     ],
     entry_points={
         "console_scripts": [
