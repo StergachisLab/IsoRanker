@@ -176,17 +176,17 @@ def process_pileup(df, reference_fasta, chromosome, position, output_file):
 
     Parameters:
     - df (pd.DataFrame): Input DataFrame containing sample and BAM file information. 
-                         Expected columns: ['SAMPLE', 'ID', 'CYCLO_NONCYCLO', 'BAM_FILE']
+                         Expected columns: ['sample', 'patient', 'cyclo', 'bam_file']
     - reference_fasta (str): Path to the reference FASTA file, used to retrieve the reference base.
     - chromosome (str): Chromosome name (e.g., 'chr1', '2', 'X') for the pileup analysis.
-    - position (int): 1-based genomic position at which pileup data is collected.
+    - position (int): genomic position at which pileup data is collected.
     - output_file (str): Path to save the results as a compressed CSV (gzip format).
 
     Returns:
     - None: Saves a compressed CSV file with columns:
-        - 'Source': Unique identifier combining 'SAMPLE', 'ID', and 'CYCLO_NONCYCLO'.
+        - 'Source': Unique identifier combining 'sample', 'patient', and 'cyclo'.
         - 'Chromosome': Chromosome name.
-        - 'Position': Genomic position (1-based).
+        - 'Position': Genomic position.
         - 'Reference_Base': Reference nucleotide at this position.
         - 'Original_Read_Depth': Total number of reads covering the position.
         - 'Exon_Read_Depth': Number of reads containing an exonic nucleotide (A, C, T, or G).
