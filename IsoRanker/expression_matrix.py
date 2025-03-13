@@ -139,7 +139,7 @@ def create_long_format(expression_matrix, sample_info=None):
     sample_totals = sample_totals.rename(columns={"cyclo_count": "total_cyclo", "noncyclo_count": "total_noncyclo"})
 
     # Merge totals back to the aggregated data
-    aggregated_data = aggregated_data.merge(sample_totals, on="Individual", how="left")
+    aggregated_data = aggregated_data.merge(sample_totals, on="individual", how="left")
 
     # Avoid division by zero
     # aggregated_data["total_cyclo"] = aggregated_data["total_cyclo"].replace(0, 1)
