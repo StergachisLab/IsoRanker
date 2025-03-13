@@ -43,7 +43,8 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     read_stats["haplotype"] = read_stats["haplotype"].fillna("H0").replace("none", "H0")
 
     # Modify `id` column efficiently using vectorized string operations
-    read_stats["id"] = read_stats["id"].str.split("_", n=1).str[0] + read_stats["haplotype"] + "_" + read_stats["id"].str.split("_", n=1).str[1]
+    # read_stats["id"] = read_stats["id"].str.split("_", n=1).str[0] + read_stats["haplotype"] + "_" + read_stats["id"].str.split("_", n=1).str[1]
+    read_stats["id"] = read_stats["id"].str.split("_m", n=1).str[0] + read_stats["haplotype"] + "_m" + read_stats["id"].str.split("_m", n=1).str[1]
 
     # Drop the `haplotype` column as it's no longer needed
     read_stats.drop(columns=["haplotype"], inplace=True)
@@ -57,17 +58,17 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     updated_sample_info = []
 
     for _, row in sample_info.iterrows():
-        sample, patient, cyclo, haplotype = row["sample"], row["patient"], row["cyclo"], row["haplotype"]
+        identifier, individual, condition, haplotype = row["sample"], row["individual"], row["condition"], row["haplotype"]
 
         if pd.notna(haplotype) and haplotype.strip():
-            updated_sample_info.append([f"{sample}H0", patient, cyclo, "H0"])
-            updated_sample_info.append([f"{sample}H1", patient, cyclo, "H1"])
-            updated_sample_info.append([f"{sample}H2", patient, cyclo, "H2"])
+            updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
+            updated_sample_info.append([f"{sample}H1", individual, condition, "H1"])
+            updated_sample_info.append([f"{sample}H2", individual, condition, "H2"])
         else:
-            updated_sample_info.append([f"{sample}H0", patient, cyclo, "H0"])
+            updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
 
     # Convert to DataFrame and save
-    updated_sample_info_df = pd.DataFrame(updated_sample_info, columns=["sample", "patient", "cyclo", "haplotype"])
+    updated_sample_info_df = pd.DataFrame(updated_sample_info, columns=["sample", "individual", "condition", "haplotype"])
     updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.csv.gz")
     updated_sample_info_df.to_csv(updated_sample_info_path, index=False, compression = "gzip")
 

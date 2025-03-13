@@ -225,7 +225,7 @@ def process_vep_vcf(vcf_file, output_dir, output_filename):
     return df, df_final
 
 
-
+# I think this is deprecated
 def merge_haplotype_data(sample_gene_file, haplotype_patient_file, output_file):
     """
     Merges haplotype data into a master file containing Sample and associated_gene.

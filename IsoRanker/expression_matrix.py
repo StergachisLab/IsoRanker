@@ -23,7 +23,7 @@ def parse_read_stats(file_path):
             read, pb_id = line.strip().split()
             
             # Extract the sample name (before the first "_")
-            sample = read.split('_')[0]
+            sample = read.split('_m')[0]
             
             # Increment the count for the PB identifier in the sample
             counts[pb_id][sample] += 1
@@ -75,14 +75,14 @@ def create_long_format(expression_matrix, sample_info=None):
     if sample_info is None:
         sample_info = pd.DataFrame({
             "sample": expression_matrix.columns,
-            "patient": expression_matrix.columns,
-            "cyclo": "noncyclo",  # Default to noncyclo if no info is provided
+            "individual": expression_matrix.columns,
+            "condition": "noncyclo",  # Default to noncyclo if no info is provided
             "haplotype": None     # No haplotype information
         })
 
     # If the patient column is not provided, set it to the same values as the sample column
-    if "patient" not in sample_info.columns:
-        sample_info["patient"] = sample_info["sample"]
+    if "individual" not in sample_info.columns:
+        sample_info["individual"] = sample_info["sample"]
 
     # Step 2: Filter sample columns to keep only those found in both the expression matrix and sample info
     valid_samples = expression_matrix.columns.intersection(sample_info["sample"])
@@ -97,30 +97,30 @@ def create_long_format(expression_matrix, sample_info=None):
 
     # Step 5: Precompute haplotype-specific and cyclo/noncyclo counts
     expression_data["H0_cyclo_count"] = (
-        (expression_data["haplotype"] == "H0") & (expression_data["cyclo"] == "cyclo")
+        (expression_data["haplotype"] == "H0") & (expression_data["condition"] == "cyclo")
     ) * expression_data["count"]
     expression_data["H1_cyclo_count"] = (
-        (expression_data["haplotype"] == "H1") & (expression_data["cyclo"] == "cyclo")
+        (expression_data["haplotype"] == "H1") & (expression_data["condition"] == "cyclo")
     ) * expression_data["count"]
     expression_data["H2_cyclo_count"] = (
-        (expression_data["haplotype"] == "H2") & (expression_data["cyclo"] == "cyclo")
+        (expression_data["haplotype"] == "H2") & (expression_data["condition"] == "cyclo")
     ) * expression_data["count"]
     expression_data["H0_noncyclo_count"] = (
-        (expression_data["haplotype"] == "H0") & (expression_data["cyclo"] == "noncyclo")
+        (expression_data["haplotype"] == "H0") & (expression_data["condition"] == "noncyclo")
     ) * expression_data["count"]
     expression_data["H1_noncyclo_count"] = (
-        (expression_data["haplotype"] == "H1") & (expression_data["cyclo"] == "noncyclo")
+        (expression_data["haplotype"] == "H1") & (expression_data["condition"] == "noncyclo")
     ) * expression_data["count"]
     expression_data["H2_noncyclo_count"] = (
-        (expression_data["haplotype"] == "H2") & (expression_data["cyclo"] == "noncyclo")
+        (expression_data["haplotype"] == "H2") & (expression_data["condition"] == "noncyclo")
     ) * expression_data["count"]
 
     # Precompute raw cyclo and noncyclo counts
-    expression_data["cyclo_count_raw"] = (expression_data["cyclo"] == "cyclo") * expression_data["count"]
-    expression_data["noncyclo_count_raw"] = (expression_data["cyclo"] == "noncyclo") * expression_data["count"]
+    expression_data["cyclo_count_raw"] = (expression_data["condition"] == "cyclo") * expression_data["count"]
+    expression_data["noncyclo_count_raw"] = (expression_data["condition"] == "noncyclo") * expression_data["count"]
 
     # Step 6: Aggregate counts by Isoform-Sample
-    aggregated_data = expression_data.groupby(["Isoform", "patient"]).agg(
+    aggregated_data = expression_data.groupby(["Isoform", "individual"]).agg(
         H0_cyclo_count=("H0_cyclo_count", "sum"),
         H1_cyclo_count=("H1_cyclo_count", "sum"),
         H2_cyclo_count=("H2_cyclo_count", "sum"),
@@ -132,14 +132,14 @@ def create_long_format(expression_matrix, sample_info=None):
     ).reset_index()
 
     # Rename the 'patient' column to 'Sample'
-    aggregated_data.rename(columns={"patient": "Sample"}, inplace=True)
+    aggregated_data.rename(columns={"individual": "Sample"}, inplace=True)
     
     # Step 7: Calculate total reads within each Sample
     sample_totals = aggregated_data.groupby("Sample")[["cyclo_count", "noncyclo_count"]].sum()
     sample_totals = sample_totals.rename(columns={"cyclo_count": "total_cyclo", "noncyclo_count": "total_noncyclo"})
 
     # Merge totals back to the aggregated data
-    aggregated_data = aggregated_data.merge(sample_totals, on="Sample", how="left")
+    aggregated_data = aggregated_data.merge(sample_totals, on="Individual", how="left")
 
     # Avoid division by zero
     # aggregated_data["total_cyclo"] = aggregated_data["total_cyclo"].replace(0, 1)

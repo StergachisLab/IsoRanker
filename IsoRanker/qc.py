@@ -203,12 +203,12 @@ def process_pileup(df, reference_fasta, chromosome, position, output_file):
     - Errors encountered during processing are logged in the output file.
     """
 
-    unique_bams = df.drop_duplicates(subset=['bam_file'])[['sample', 'patient', 'cyclo', 'bam_file']]
+    unique_bams = df.drop_duplicates(subset=['bam_file'])[['sample', 'individual', 'condition', 'bam_file']]
     
     results = [["Source", "Chromosome", "Position", "Reference_Base", "Original_Read_Depth", "Exon_Read_Depth", "Exonic_Proportion", "Read_Bases", "Base_Qualities"]]
     
     for _, row in unique_bams.iterrows():
-        source = f"{row['sample']}_{row['patient']}_{row['cyclo']}"
+        source = f"{row['sample']}_{row['individual']}_{row['condition']}"
         bam_file = row['bam_file']
         print(f"Processing BAM file: {bam_file} from source: {source}")
         
