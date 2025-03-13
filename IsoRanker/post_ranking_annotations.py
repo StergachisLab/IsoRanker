@@ -27,21 +27,21 @@ def merge_csvs_by_keyword(directory, keyword, output_csv):
         print(f"No matching files found for keyword '{keyword}'. Skipping...")
         return
 
-    first_df = pd.read_csv(csv_files[0], compression="gzip")
+    first_df = pd.read_csv(csv_files[0], compression = "gzip")
     all_columns = list(first_df.columns)
     all_columns.append("Source_File")
 
     for file in csv_files[1:]:
-        df = pd.read_csv(file, compression="gzip")
+        df = pd.read_csv(file, compression = "gzip")
         new_columns = [col for col in df.columns if col not in all_columns]
         all_columns.extend(new_columns)
 
     merged_df = pd.concat(
-        [pd.read_csv(f, compression="gzip").reindex(columns=all_columns).assign(Source_File=os.path.basename(f)) for f in csv_files],
+        [pd.read_csv(f, compression = "gzip").reindex(columns=all_columns).assign(Source_File=os.path.basename(f)) for f in csv_files],
         ignore_index=True
     )
 
-    merged_df.to_csv(output_csv, index=False, compression="gzip")
+    merged_df.to_csv(output_csv, index=False, compression = "gzip")
     print(f"Merged {len(csv_files)} '{keyword}' files into: {output_csv}")
 
 
