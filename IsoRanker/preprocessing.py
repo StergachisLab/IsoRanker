@@ -30,6 +30,27 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
             except pd.errors.EmptyDataError:
                 print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
 
+        if pd.notna(haplotype_file) and haplotype_file.strip():
+            try:
+                # Check if file is empty or contains only headers
+                with open(haplotype_file, "r") as f:
+                    lines = f.readlines()
+                    if len(lines) <= 1:  # Only header row present
+                        print(f"Warning: {haplotype_file} contains only headers or is empty. Skipping.", flush=True)
+                        continue  # Skip this file
+
+                # Read haplotype file in chunks if it is large
+                for chunk in pd.read_csv(haplotype_file, sep="\t", chunksize=500000, usecols=["#readname", "haplotype"], dtype=str):
+                    if chunk.empty:
+                        continue  # Skip empty chunks
+                    chunk.rename(columns={"#readname": "id"}, inplace=True)
+                    all_haplotypes.append(chunk)
+
+            except FileNotFoundError:
+                print(f"Warning: File {haplotype_file} not found. Skipping.", flush=True)
+            except pd.errors.EmptyDataError:
+                print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
+
     # Combine haplotype data into a single DataFrame
     if all_haplotypes:
         haplotype_df = pd.concat(all_haplotypes, ignore_index=True)
