@@ -19,16 +19,6 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
 
         print(f"Processing haplotype assignment file for {sample}", flush=True)
 
-        if pd.notna(haplotype_file) and haplotype_file.strip():
-            try:
-                # Read haplotype file in chunks if it is large
-                for chunk in pd.read_csv(haplotype_file, sep="\t", chunksize=500000, usecols=["#readname", "haplotype"], dtype=str):
-                    chunk.rename(columns={"#readname": "id"}, inplace=True)
-                    all_haplotypes.append(chunk)
-            except FileNotFoundError:
-                print(f"Warning: File {haplotype_file} not found. Skipping.", flush=True)
-            except pd.errors.EmptyDataError:
-                print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
 
         if pd.notna(haplotype_file) and haplotype_file.strip():
             try:
