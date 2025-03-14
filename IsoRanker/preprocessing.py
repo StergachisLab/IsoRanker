@@ -69,7 +69,7 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     updated_sample_info = []
 
     for _, row in sample_info.iterrows():
-        identifier, individual, condition, haplotype = row["sample"], row["individual"], row["condition"], row["haplotype"]
+        sample, individual, condition, haplotype = row["sample"], row["individual"], row["condition"], row["haplotype"]
 
         if pd.notna(haplotype) and haplotype.strip():
             updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
