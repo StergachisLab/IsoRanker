@@ -169,7 +169,7 @@ class TestExpressionMatrix(unittest.TestCase):
         }, index=["iso1", "iso2"])
         sample_info = pd.DataFrame({
             "sample": ["S1", "S2"],
-            "cyclo": ["cyclo", "noncyclo"],
+            "condition": ["cyclo", "noncyclo"],
             "haplotype": ["HP1", "HP2"]
         })
         long_format = create_long_format(expression_matrix, sample_info)
