@@ -77,12 +77,16 @@ def create_long_format(expression_matrix, sample_info=None):
             "sample": expression_matrix.columns,
             "individual": expression_matrix.columns,
             "condition": "noncyclo",  # Default to noncyclo if no info is provided
-            "haplotype": None     # No haplotype information
+            "haplotype": "H0"     # No haplotype information
         })
 
     # If the patient column is not provided, set it to the same values as the sample column
     if "individual" not in sample_info.columns:
         sample_info["individual"] = sample_info["sample"]
+
+    # If the haplotype column is not provided, set it to none. 
+    if "haplotype" not in sample_info.columns:
+        sample_info["haplotype"] = "H0"
 
     # Step 2: Filter sample columns to keep only those found in both the expression matrix and sample info
     valid_samples = expression_matrix.columns.intersection(sample_info["sample"])
