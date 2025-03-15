@@ -66,6 +66,9 @@ def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col = "associat
     # Pivot table to have Samples as rows and associated_gene as columns
     pivot_df = final_df.pivot(index="Sample", columns=grouping_col, values="TPM").fillna(0)
 
+    # Remove samples where all TPM values are 0
+    pivot_df = pivot_df.loc[pivot_df.any(axis=1)]
+
     # Standardize the data to match R's prcomp(center=TRUE, scale=TRUE)
     scaler = StandardScaler()
     scaled_data = scaler.fit_transform(pivot_df)
