@@ -100,7 +100,7 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
             updated_sample_info.append(new_row)
 
     # Convert to DataFrame and save
-    updated_sample_info_df = pd.DataFrame(updated_sample_info, columns=["sample", "individual", "condition", "haplotype"])
+    updated_sample_info_df = pd.DataFrame(updated_sample_info)
     updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.csv.gz")
     updated_sample_info_df.to_csv(updated_sample_info_path, index=False, compression = "gzip")
 
