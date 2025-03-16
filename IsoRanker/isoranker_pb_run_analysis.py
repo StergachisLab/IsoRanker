@@ -84,7 +84,7 @@ def main():
     update_files_with_haplotype_info(sample_info_path, read_stat_path, output_dir)
     read_stat_path = os.path.join(output_dir, "updated_read_stats.txt.gz")
     sample_info_path = os.path.join(output_dir, "updated_sample_info.csv.gz")
-    sample_info = pd.read_csv(sample_info_path)
+    sample_info = pd.read_csv(sample_info_path, compression = "gzip")
 
     ################################################
     # Create the expression matrix
