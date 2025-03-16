@@ -439,14 +439,16 @@ def main():
     ###################################
 
     # Define folder names
-    QC_FOLDER = "qc"
-    BROWSER_FOLDER = "browser"
+    OUTPUT_FOLDER = "Output"
+    QC_FOLDER = os.path.join(OUTPUT_FOLDER, "qc")
+    BROWSER_FOLDER = os.path.join(OUTPUT_FOLDER, "browser")
     LOOKUP_TABLES_FOLDER = os.path.join(BROWSER_FOLDER, "lookup_tables")
     COMBINED_RESULTS_FOLDER = os.path.join(BROWSER_FOLDER, "combined_results")
     SEPARATED_RESULTS_FOLDER = os.path.join(BROWSER_FOLDER, "separated_results")
-    INTERMEDIATE_FOLDER = "intermediate"
+    INTERMEDIATE_FOLDER = os.path.join(OUTPUT_FOLDER, "intermediate")
 
     # Ensure directories exist
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
     os.makedirs(QC_FOLDER, exist_ok=True)
     os.makedirs(BROWSER_FOLDER, exist_ok=True)
     os.makedirs(LOOKUP_TABLES_FOLDER, exist_ok=True)
