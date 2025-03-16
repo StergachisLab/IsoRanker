@@ -420,15 +420,19 @@ def main():
     # Sort DataFrame by source
     df_sorted = SRSF6_df.sort_values(by="Source")
 
+    # Define colors based on condition
+    colors = ["red" if "_cyclo" in source else "blue" for source in df_sorted["Source"]]
+
     # Plot bar chart
     plt.figure(figsize=(15, 9))
-    sns.barplot(data=df_sorted, x="Source", y="Exonic_Proportion", edgecolor="black")
+    sns.barplot(data=df_sorted, x="Source", y="Exonic_Proportion", edgecolor="black", palette=colors)
 
     # Labeling and formatting
     plt.xlabel("Source")
     plt.ylabel("Exonic Proportion")
     plt.title("Bar Plot of Exonic Proportion by Source")
     plt.xticks(rotation=45, fontsize=7, ha="right")  # Adjust alignment to prevent cutoff
+
 
     # Save to PDF
     plt.savefig("SRSF6_exonic_proportion.pdf", format="pdf")
