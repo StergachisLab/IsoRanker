@@ -411,8 +411,7 @@ def main():
 
     print("Analzying SRSF6 cassette exon inclusion", flush=True)
 
-    original_sample_info = pd.read_csv(sample_info_path)
-    process_pileup(df=original_sample_info, reference_fasta= reference_fasta_path, chromosome="chr20", position=43459200, output_file="SRSF6.csv.gz")
+    process_pileup(df=sample_info, reference_fasta= reference_fasta_path, chromosome="chr20", position=43459200, output_file="SRSF6.csv.gz")
 
     # Plotting:
 

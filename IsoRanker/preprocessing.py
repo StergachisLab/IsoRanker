@@ -65,18 +65,39 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     read_stats.to_csv(updated_read_stats_path, sep="\t", index=False, compression = "gzip")
     print(f"Updated read_stats saved to {updated_read_stats_path}", flush=True)
 
+
     # Update sample_info with haplotype assignments
+    # updated_sample_info = []
+
+    # for _, row in sample_info.iterrows():
+    #     sample, individual, condition, haplotype = row["sample"], row["individual"], row["condition"], row["haplotype"]
+
+    #     if pd.notna(haplotype) and haplotype.strip():
+    #         updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
+    #         updated_sample_info.append([f"{sample}H1", individual, condition, "H1"])
+    #         updated_sample_info.append([f"{sample}H2", individual, condition, "H2"])
+    #     else:
+    #         updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
+
+    # Retain all columns from the original sample_info
     updated_sample_info = []
 
     for _, row in sample_info.iterrows():
-        sample, individual, condition, haplotype = row["sample"], row["individual"], row["condition"], row["haplotype"]
+        row_dict = row.to_dict()  # Convert row to dictionary to preserve all columns
+        sample = row_dict["sample"]
+        haplotype = row_dict["haplotype"]
 
         if pd.notna(haplotype) and haplotype.strip():
-            updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
-            updated_sample_info.append([f"{sample}H1", individual, condition, "H1"])
-            updated_sample_info.append([f"{sample}H2", individual, condition, "H2"])
+            for hap in ["H0", "H1", "H2"]:
+                new_row = row_dict.copy()
+                new_row["sample"] = f"{sample}{hap}"
+                new_row["haplotype"] = hap
+                updated_sample_info.append(new_row)
         else:
-            updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
+            new_row = row_dict.copy()
+            new_row["sample"] = f"{sample}H0"
+            new_row["haplotype"] = "H0"
+            updated_sample_info.append(new_row)
 
     # Convert to DataFrame and save
     updated_sample_info_df = pd.DataFrame(updated_sample_info, columns=["sample", "individual", "condition", "haplotype"])
