@@ -433,6 +433,7 @@ def main():
     plt.title("Bar Plot of Exonic Proportion by Source")
     plt.xticks(rotation=45, fontsize=7, ha="right")  # Adjust alignment to prevent cutoff
 
+    plt.tight_layout()
 
     # Save to PDF
     plt.savefig("SRSF6_exonic_proportion.pdf", format="pdf")
