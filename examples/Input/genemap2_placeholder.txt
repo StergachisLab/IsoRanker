@@ -1,4 +1,0 @@
-# This is just placeholder file													
-# Please download the full genemap2 file in the OMIM website													
-# 													
-# Chromosome	Genomic Position Start	Genomic Position End	Cyto Location	Computed Cyto Location	MIM Number	Gene/Locus And Other Related Symbols	Gene Name	Approved Gene Symbol	Entrez Gene ID	Ensembl Gene ID	Comments	Phenotypes	Mouse Gene Symbol/ID
