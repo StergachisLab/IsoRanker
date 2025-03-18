@@ -40,7 +40,7 @@ def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col = "associat
     - PCA is performed with two components.
     - The PCA plot is colored by treatment condition (Cyclo in red, Noncyclo in blue).
     - The plot is saved as a PDF at the specified `output_pdf` path.
-    - Hg38 SRSF6 example usage: process_pileup(df=input_df, reference_fasta="/gscratch/stergachislab/assemblies/simple-names/hg38.fa", chromosome="chr20", position=43459200, output_file="SRSF6.csv.gz")
+    - Hg38 SRSF6 example usage: process_pileup(df=input_df, reference_fasta="/gscratch/stergachislab/assemblies/simple-names/hg38.fa", chromosome="chr20", position=43459200, output_file="SRSF6.tsv.gz")
     """
 
     df_filtered = filter_based_on_counts(df, count_threshold=10, group_col=grouping_col)
@@ -116,11 +116,11 @@ def analyze_isoforms(df, output_file, grouping_column):
     
     Parameters:
     - df (pd.DataFrame): Input DataFrame with columns ['Sample', grouping_column, 'cyclo_count', 'noncyclo_count']
-    - output_file (str): Path to save the results as a compressed CSV.
+    - output_file (str): Path to save the results as a compressed TSV.
     - grouping_column (str): Column name used to group the counts (e.g., 'associated_gene' or 'Isoform').
     
     Returns:
-    - None: Saves a compressed CSV file.
+    - None: Saves a compressed TSV file.
     """
 
     # Step 1: Collapse data by Sample and grouping_column by summing counts
@@ -168,8 +168,8 @@ def analyze_isoforms(df, output_file, grouping_column):
         f'Noncyclo Unique {grouping_column} >10', f'Noncyclo Unique {grouping_column} >100', f'Noncyclo Unique {grouping_column} >1000'
     ])
     
-    # Step 4: Save to compressed CSV
-    output_df.to_csv(output_file, index=False, compression="gzip")
+    # Step 4: Save to compressed TSV
+    output_df.to_csv(output_file, index=False, compression="gzip", sep="\t")
 
 
 def process_pileup(df, reference_fasta, chromosome, position, output_file):
@@ -183,10 +183,10 @@ def process_pileup(df, reference_fasta, chromosome, position, output_file):
     - reference_fasta (str): Path to the reference FASTA file, used to retrieve the reference base.
     - chromosome (str): Chromosome name (e.g., 'chr1', '2', 'X') for the pileup analysis.
     - position (int): genomic position at which pileup data is collected.
-    - output_file (str): Path to save the results as a compressed CSV (gzip format).
+    - output_file (str): Path to save the results as a compressed tsv (gzip format).
 
     Returns:
-    - None: Saves a compressed CSV file with columns:
+    - None: Saves a compressed tsv file with columns:
         - 'Source': Unique identifier combining 'sample', 'patient', and 'cyclo'.
         - 'Chromosome': Chromosome name.
         - 'Position': Genomic position.
@@ -243,5 +243,5 @@ def process_pileup(df, reference_fasta, chromosome, position, output_file):
     
         
     df_output = pd.DataFrame(results[1:], columns=results[0])
-    df_output.to_csv(output_file, index=False, compression = "gzip")
+    df_output.to_csv(output_file, index=False, compression = "gzip", sep="\t")
     print(f"Processing complete. Results saved to {output_file}")

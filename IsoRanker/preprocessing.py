@@ -4,8 +4,8 @@ import pandas as pd
 def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_stats_path, output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
-    # Load sample_info_with_haplotype_location.csv
-    sample_info = pd.read_csv(sample_info_with_haplotype_location)
+    # Load sample_info_with_haplotype_location.tsv
+    sample_info = pd.read_csv(sample_info_with_haplotype_location, sep="\t")
 
     # Load read_stats.txt
     read_stats = pd.read_csv(read_stats_path, sep="\t", dtype={"id": str})  # Ensure id column is string
@@ -101,8 +101,8 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
 
     # Convert to DataFrame and save
     updated_sample_info_df = pd.DataFrame(updated_sample_info)
-    updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.csv.gz")
-    updated_sample_info_df.to_csv(updated_sample_info_path, index=False, compression = "gzip")
+    updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
+    updated_sample_info_df.to_csv(updated_sample_info_path, index=False, compression = "gzip", sep="\t")
 
     print(f"Updated sample info saved to {updated_sample_info_path}", flush=True)
 

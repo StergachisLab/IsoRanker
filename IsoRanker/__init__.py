@@ -22,7 +22,7 @@ from .expression_matrix import (
     create_long_format
 )
 from .post_ranking_annotations import (
-    merge_csvs_by_keyword, 
+    merge_tsvs_by_keyword, 
     process_vep_vcf, 
     merge_haplotype_data, 
     process_phenotype_data

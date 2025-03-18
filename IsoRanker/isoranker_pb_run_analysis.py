@@ -25,7 +25,7 @@ from IsoRanker import (
     create_long_format,
     process_hypothesis_test,
     update_files_with_haplotype_info,
-    merge_csvs_by_keyword, 
+    merge_tsvs_by_keyword, 
     process_vep_vcf, 
     merge_haplotype_data, 
     process_phenotype_data,
@@ -41,13 +41,13 @@ def main():
     ################################################
     parser = argparse.ArgumentParser(description="Run analysis pipeline.")
     parser.add_argument("--read_stat_path", required=True, help="Path to the read_stat.txt file.")
-    parser.add_argument("--sample_info_path", required=True, help="Path to the sample info CSV file.")
+    parser.add_argument("--sample_info_path", required=True, help="Path to the sample info tsv file.")
     parser.add_argument("--classification_path", required=True, help="Path to the pigeon classification file.")
     parser.add_argument("--genemap_path", required=True, help="Path to the genemap2.txt file.")
     parser.add_argument("--hpo_file_path", required=True, help="Path to the file that matches HPO terms to OMIM. Download from here: https://hpo.jax.org/data/annotations.")
     parser.add_argument("--probands_file_path", required=True, help="Path to the file that contains proband HPO terms.")
     parser.add_argument("--reference_fasta_path", required=True, help="Path to the hg38 reference fasta path.")
-    #parser.add_argument("--output_dir", required=True, help="Directory to save the output files.")
+    parser.add_argument("--output_dir", required=True, help="Directory to save the output files.")
 
     args = parser.parse_args()
 
@@ -61,8 +61,8 @@ def main():
     hpo_file_path = args.hpo_file_path
     probands_file_path = args.probands_file_path
     reference_fasta_path = args.reference_fasta_path
-    output_dir = "."
-    #output_dir = args.output_dir
+    #output_dir = "."
+    output_dir = args.output_dir
 
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -71,7 +71,7 @@ def main():
     # Load input files
     ################################################
     print("Reading input files", flush=True)
-    sample_info = pd.read_csv(sample_info_path)
+    sample_info = pd.read_csv(sample_info_path, sep="\t")
     classification_data = pd.read_csv(classification_path, sep="\t")
     genemap = pd.read_csv(genemap_path, sep='\t', skiprows=3) # Read the file, skipping the first 3 rows
     genemap = genemap[genemap['Approved Gene Symbol'].notnull()]
@@ -83,14 +83,14 @@ def main():
     print("Updating input files with haplotype information", flush=True)
     update_files_with_haplotype_info(sample_info_path, read_stat_path, output_dir)
     read_stat_path = os.path.join(output_dir, "updated_read_stats.txt.gz")
-    sample_info_path = os.path.join(output_dir, "updated_sample_info.csv.gz")
-    sample_info = pd.read_csv(sample_info_path, compression = "gzip")
+    sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
+    sample_info = pd.read_csv(sample_info_path, compression = "gzip", sep="\t")
 
     ################################################
     # Create the expression matrix
     ################################################
     print("Creating expression matrix", flush=True)
-    expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.csv.gz"))
+    expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.tsv.gz"))
 
     ################################################
     # Generate long-format DataFrame
@@ -107,7 +107,7 @@ def main():
         how="left"
     ).drop(columns=["isoform"])
 
-    long_format_annotated.to_csv(os.path.join(output_dir, "long_format_annotated.csv.gz"), index=False, compression = "gzip")
+    long_format_annotated.to_csv(os.path.join(output_dir, "long_format_annotated.tsv.gz"), index=False, compression = "gzip", sep="\t")
 
     ################################################
     # Gene level hypothesis testing
@@ -157,9 +157,9 @@ def main():
         # Drop the 'Approved Gene Name' column if it is no longer needed
         filtered_ranked_data = filtered_ranked_data.drop(columns=['Approved Gene Symbol'])
 
-        # Save the results to a CSV file
-        output_file = os.path.join(output_dir, f"{test_name}_gene_top_ranked_data.csv.gz")
-        filtered_ranked_data.to_csv(output_file, index=False, compression = "gzip")
+        # Save the results to a tsv file
+        output_file = os.path.join(output_dir, f"{test_name}_gene_top_ranked_data.tsv.gz")
+        filtered_ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
         print(f"Results saved to {output_file}", flush=True)
 
     ################################################
@@ -200,9 +200,9 @@ def main():
         # Drop the 'Approved Gene Name' column if it is no longer needed
         filtered_ranked_data = filtered_ranked_data.drop(columns=['Approved Gene Symbol'])
 
-        # Save the results to a CSV file
-        output_file = os.path.join(output_dir, f"{test_name}_isoform_top_ranked_data.csv.gz")
-        filtered_ranked_data.to_csv(output_file, index=False, compression = "gzip")
+        # Save the results to a tsv file
+        output_file = os.path.join(output_dir, f"{test_name}_isoform_top_ranked_data.tsv.gz")
+        filtered_ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
         print(f"Results saved to {output_file}", flush=True)
 
 
@@ -213,13 +213,13 @@ def main():
 
     # Isoform
     keyword = "isoform" 
-    output_csv = os.path.join(output_dir, f"merged_ranked_{keyword}.csv.gz")
-    merge_csvs_by_keyword(output_dir, keyword, output_csv)
+    output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
+    merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
     # Gene
     keyword = "gene"
-    output_csv = os.path.join(output_dir, f"merged_ranked_{keyword}.csv.gz")
-    merge_csvs_by_keyword(output_dir, keyword, output_csv)
+    output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
+    merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
 
     ################################################
@@ -230,7 +230,7 @@ def main():
     all_comparisons, all_comparisons_long = process_phenotype_data(hpo_file_path, genemap_path, probands_file_path)
 
     # Master file gene
-    master_file = pd.read_csv("merged_ranked_gene.csv.gz", compression = "gzip")
+    master_file = pd.read_csv("merged_ranked_gene.tsv.gz", compression = "gzip", sep="\t")
 
     # Merge `master_file` with `all_comparisons_long` based on `Sample` and gene name
     merged_data = master_file.merge(
@@ -241,11 +241,11 @@ def main():
     )
 
     # Save merged output
-    merged_data.to_csv("merged_ranked_gene_with_phenotype.csv.gz", index=False, compression = "gzip")
+    merged_data.to_csv("merged_ranked_gene_with_phenotype.tsv.gz", index=False, compression = "gzip", sep="\t")
 
 
     # Master file isoform
-    master_file = pd.read_csv("merged_ranked_isoform.csv.gz", compression = "gzip")
+    master_file = pd.read_csv("merged_ranked_isoform.tsv.gz", compression = "gzip", sep="\t")
 
     # Merge `master_file` with `all_comparisons_long` based on `Sample` and gene name
     merged_data = master_file.merge(
@@ -256,7 +256,7 @@ def main():
     )
 
     # Save merged output
-    merged_data.to_csv("merged_ranked_isoform_with_phenotype.csv.gz", index=False, compression = "gzip")
+    merged_data.to_csv("merged_ranked_isoform_with_phenotype.tsv.gz", index=False, compression = "gzip", sep="\t")
 
     ################################################
     # Create lookup tables
@@ -279,8 +279,8 @@ def main():
         # Merge into merged_df using outer join
         sample_gene_rankings_lookup_table = pd.merge(sample_gene_rankings_lookup_table, df_renamed, on=["Sample", "associated_gene"], how="outer")
 
-    # Save as a compressed CSV (gzip format)
-    sample_gene_rankings_lookup_table.to_csv("sample_gene_rankings_lookup_table.csv.gz", index=False, compression="gzip")
+    # Save as a compressed tsv (gzip format)
+    sample_gene_rankings_lookup_table.to_csv("sample_gene_rankings_lookup_table.tsv.gz", index=False, compression="gzip", sep="\t")
 
     # Group by gene (associated_gene) and compute median, Q1 (25th percentile), and Q3 (75th percentile)
     gene_coverage_lookup_table = sample_gene_rankings_lookup_table.groupby("associated_gene").agg(
@@ -297,7 +297,7 @@ def main():
         Noncyclo_TPM_max=("Noncyclo_TPM", "max")   # Maximum value
     ).reset_index()
 
-    gene_coverage_lookup_table.to_csv("gene_coverage_lookup_table.csv.gz", index=False, compression="gzip")
+    gene_coverage_lookup_table.to_csv("gene_coverage_lookup_table.tsv.gz", index=False, compression="gzip", sep="\t")
 
 
     ################################################
@@ -318,11 +318,11 @@ def main():
 
     print("Analyzing gene diversity", flush=True)
 
-    analyze_isoforms(long_format_annotated, "gene_diversity.csv.gz", "associated_gene")
+    analyze_isoforms(long_format_annotated, "gene_diversity.tsv.gz", "associated_gene")
 
     # Plotting:
 
-    df = pd.read_csv("gene_diversity.csv.gz", compression = "gzip")
+    df = pd.read_csv("gene_diversity.tsv.gz", compression = "gzip", sep="\t")
 
     # Drop 'Cyclo Total Reads' and 'Noncyclo Total Reads' columns
     df_filtered = df.drop(columns=["Cyclo Total Reads", "Noncyclo Total Reads"])
@@ -366,9 +366,9 @@ def main():
 
     print("Analzying isoform diversity", flush=True)
 
-    analyze_isoforms(long_format_annotated, "isoform_diversity.csv.gz", "Isoform")
+    analyze_isoforms(long_format_annotated, "isoform_diversity.tsv.gz", "Isoform")
 
-    df = pd.read_csv("isoform_diversity.csv.gz", compression = "gzip")
+    df = pd.read_csv("isoform_diversity.tsv.gz", compression = "gzip", sep="\t")
 
     # Drop 'Cyclo Total Reads' and 'Noncyclo Total Reads' columns
     df_filtered = df.drop(columns=["Cyclo Total Reads", "Noncyclo Total Reads"])
@@ -411,11 +411,11 @@ def main():
 
     print("Analzying SRSF6 cassette exon inclusion", flush=True)
 
-    process_pileup(df=sample_info, reference_fasta= reference_fasta_path, chromosome="chr20", position=43459200, output_file="SRSF6.csv.gz")
+    process_pileup(df=sample_info, reference_fasta= reference_fasta_path, chromosome="chr20", position=43459200, output_file="SRSF6.tsv.gz")
 
     # Plotting:
 
-    SRSF6_df = pd.read_csv("SRSF6.csv.gz", compression = "gzip")
+    SRSF6_df = pd.read_csv("SRSF6.tsv.gz", compression = "gzip", sep="\t")
 
     # Sort DataFrame by source
     df_sorted = SRSF6_df.sort_values(by="Source")
@@ -444,7 +444,8 @@ def main():
     ###################################
 
     # Define folder names
-    OUTPUT_FOLDER = "Output"
+    #OUTPUT_FOLDER = "Output"
+    OUTPUT_FOLDER = output_dir
     QC_FOLDER = os.path.join(OUTPUT_FOLDER, "qc")
     BROWSER_FOLDER = os.path.join(OUTPUT_FOLDER, "browser")
     LOOKUP_TABLES_FOLDER = os.path.join(BROWSER_FOLDER, "lookup_tables")
@@ -464,36 +465,36 @@ def main():
     # Define file categories
     qc_files = {
         "pca_plot.pdf",
-        "gene_diversity.csv.gz",
-        "isoform_diversity.csv.gz",
-        "SRSF6.csv.gz",
+        "gene_diversity.tsv.gz",
+        "isoform_diversity.tsv.gz",
+        "SRSF6.tsv.gz",
         "SRSF6_exonic_proportion.pdf",
         "isoform_diversity.pdf",
         "gene_diversity.pdf"
     }
 
     lookup_table_files = {
-        "sample_gene_rankings_lookup_table.csv.gz",
-        "gene_coverage_lookup_table.csv.gz"
+        "sample_gene_rankings_lookup_table.tsv.gz",
+        "gene_coverage_lookup_table.tsv.gz"
     }
 
     combined_results_files = {
-        "merged_ranked_gene_with_phenotype.csv.gz",
-        "merged_ranked_isoform_with_phenotype.csv.gz"
+        "merged_ranked_gene_with_phenotype.tsv.gz",
+        "merged_ranked_isoform_with_phenotype.tsv.gz"
     }
 
     separated_results_files = {
-        "Cyclo_Allelic_Imbalance_gene_top_ranked_data.csv.gz",
-        "Cyclo_GOE_gene_top_ranked_data.csv.gz",
-        "Cyclo_GOE_isoform_top_ranked_data.csv.gz",
-        "NMD_gene_top_ranked_data.csv.gz",
-        "NMD_isoform_top_ranked_data.csv.gz",
-        "NMD_rare_steady_state_transcript_gene_top_ranked_data.csv.gz",
-        "Noncyclo_GOE_gene_top_ranked_data.csv.gz",
-        "Noncyclo_GOE_isoform_top_ranked_data.csv.gz",
-        "Noncyclo_LOE_gene_top_ranked_data.csv.gz",
-        "Noncyclo_LOE_isoform_top_ranked_data.csv.gz",
-        "Nonyclo_Allelic_Imbalance_gene_top_ranked_data.csv.gz"
+        "Cyclo_Allelic_Imbalance_gene_top_ranked_data.tsv.gz",
+        "Cyclo_GOE_gene_top_ranked_data.tsv.gz",
+        "Cyclo_GOE_isoform_top_ranked_data.tsv.gz",
+        "NMD_gene_top_ranked_data.tsv.gz",
+        "NMD_isoform_top_ranked_data.tsv.gz",
+        "NMD_rare_steady_state_transcript_gene_top_ranked_data.tsv.gz",
+        "Noncyclo_GOE_gene_top_ranked_data.tsv.gz",
+        "Noncyclo_GOE_isoform_top_ranked_data.tsv.gz",
+        "Noncyclo_LOE_gene_top_ranked_data.tsv.gz",
+        "Noncyclo_LOE_isoform_top_ranked_data.tsv.gz",
+        "Nonyclo_Allelic_Imbalance_gene_top_ranked_data.tsv.gz"
     }
 
     browser_files = lookup_table_files | combined_results_files | separated_results_files

@@ -6,43 +6,43 @@ import re
 from pyhpo import stats, Ontology, HPOSet
 
 
-def merge_csvs_by_keyword(directory, keyword, output_csv):
+def merge_tsvs_by_keyword(directory, keyword, output_tsv):
     """
-    Merges CSV files in the specified directory that contain a given keyword in their filename.
+    Merges tsv files in the specified directory that contain a given keyword in their filename.
     The function preserves column order from the first file and includes all columns across files.
     Adds a column `Source_File` to track the original file for each row.
 
     Parameters:
-    - directory (str): Path to the directory containing CSV files.
+    - directory (str): Path to the directory containing tsv files.
     - keyword (str): Keyword to match files (e.g., "gene" or "isoform").
-    - output_csv (str): Output file path for the merged CSV.
+    - output_tsv (str): Output file path for the merged tsv.
 
     Returns:
-    - None: Saves the merged CSV to the specified output path.
+    - None: Saves the merged tsv to the specified output path.
     """
 
-    csv_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".csv.gz") and keyword.lower() in f.lower()]
+    tsv_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".tsv.gz") and keyword.lower() in f.lower()]
 
-    if not csv_files:
+    if not tsv_files:
         print(f"No matching files found for keyword '{keyword}'. Skipping...")
         return
 
-    first_df = pd.read_csv(csv_files[0], compression = "gzip")
+    first_df = pd.read_csv(tsv_files[0], compression = "gzip", sep="\t")
     all_columns = list(first_df.columns)
     all_columns.append("Source_File")
 
-    for file in csv_files[1:]:
-        df = pd.read_csv(file, compression = "gzip")
+    for file in tsv_files[1:]:
+        df = pd.read_csv(file, compression = "gzip", sep="\t")
         new_columns = [col for col in df.columns if col not in all_columns]
         all_columns.extend(new_columns)
 
     merged_df = pd.concat(
-        [pd.read_csv(f, compression = "gzip").reindex(columns=all_columns).assign(Source_File=os.path.basename(f)) for f in csv_files],
+        [pd.read_csv(f, compression = "gzip", sep="\t").reindex(columns=all_columns).assign(Source_File=os.path.basename(f)) for f in tsv_files],
         ignore_index=True
     )
 
-    merged_df.to_csv(output_csv, index=False, compression = "gzip")
-    print(f"Merged {len(csv_files)} '{keyword}' files into: {output_csv}")
+    merged_df.to_csv(output_tsv, index=False, compression = "gzip", sep="\t")
+    print(f"Merged {len(tsv_files)} '{keyword}' files into: {output_tsv}")
 
 
 def process_vep_vcf(vcf_file, output_dir, output_filename):
@@ -52,7 +52,7 @@ def process_vep_vcf(vcf_file, output_dir, output_filename):
 
     Parameters:
     - vcf_file (str): Path to the input VCF file.
-    - output_dir (str): Directory where output CSV files will be saved.
+    - output_dir (str): Directory where output tsv files will be saved.
     - output_filename (str): Base name for the output files (without extension).
 
     Returns:
@@ -161,10 +161,10 @@ def process_vep_vcf(vcf_file, output_dir, output_filename):
     # Convert to DataFrame
     df = pd.DataFrame(variant_data)
 
-    # Save df.csv
-    df_csv_path = os.path.join(output_dir, f"{output_filename}_vcf_vep_filtered.csv")
-    df.to_csv(df_csv_path, index=False)
-    print(f"Saved: {df_csv_path}")
+    # Save df.tsv
+    df_tsv_path = os.path.join(output_dir, f"{output_filename}_vcf_vep_filtered.tsv")
+    df.to_csv(df_tsv_path, index=False, sep="\t")
+    print(f"Saved: {df_tsv_path}")
 
     # Process df to generate df_final
     required_columns = {"SYMBOL", "HGVSg", "MAX_AF", "CLIN_SIG", "Consequence"}
@@ -217,10 +217,10 @@ def process_vep_vcf(vcf_file, output_dir, output_filename):
 
     df_final = pd.DataFrame(final_data)
 
-    # Save df_final.csv
-    df_final_csv_path = os.path.join(output_dir, f"{output_filename}_gene_haplotype_split.csv")
-    df_final.to_csv(df_final_csv_path, index=False)
-    print(f"Saved: {df_final_csv_path}")
+    # Save df_final.tsv
+    df_final_tsv_path = os.path.join(output_dir, f"{output_filename}_gene_haplotype_split.tsv", sep="\t")
+    df_final.to_csv(df_final_tsv_path, index=False, sep="\t")
+    print(f"Saved: {df_final_tsv_path}")
 
     return df, df_final
 
@@ -231,16 +231,16 @@ def merge_haplotype_data(sample_gene_file, haplotype_patient_file, output_file):
     Merges haplotype data into a master file containing Sample and associated_gene.
 
     Parameters:
-    - sample_gene_file (str): Path to the CSV file containing 'Sample' and 'associated_gene' columns.
-    - haplotype_patient_file (str): Path to the CSV file containing 'Gene', 'Hap1', 'Hap2', 'Hap0', and 'Patient'.
-    - output_file (str): Path to save the merged CSV.
+    - sample_gene_file (str): Path to the tsv file containing 'Sample' and 'associated_gene' columns.
+    - haplotype_patient_file (str): Path to the tsv file containing 'Gene', 'Hap1', 'Hap2', 'Hap0', and 'Patient'.
+    - output_file (str): Path to save the merged tsv.
 
     Returns:
-    - None: Saves the merged CSV to the specified output file.
+    - None: Saves the merged tsv to the specified output file.
     """
 
-    sample_gene_df = pd.read_csv(sample_gene_file)
-    haplotype_df = pd.read_csv(haplotype_patient_file)
+    sample_gene_df = pd.read_csv(sample_gene_file, sep="\t")
+    haplotype_df = pd.read_csv(haplotype_patient_file, sep="\t")
 
     merged_df = sample_gene_df.merge(
         haplotype_df,
@@ -249,7 +249,7 @@ def merge_haplotype_data(sample_gene_file, haplotype_patient_file, output_file):
         how="left"
     ).drop(columns=["Patient", "Gene"], errors="ignore")
 
-    merged_df.to_csv(output_file, index=False)
+    merged_df.to_csv(output_file, index=False, sep="\t")
     print(f"Merged data saved to: {output_file}")
 
 
@@ -274,7 +274,7 @@ def process_phenotype_data(hpo_file, genemap_file, probands_file, output_prefix=
     hpo_dict = hpo.groupby('database_id')['hpo_id'].apply(lambda x: x.unique().tolist()).to_dict()
 
     # Load and process probands data
-    probands = pd.read_csv(probands_file)[['Sample', 'Phenotype']].drop_duplicates()
+    probands = pd.read_csv(probands_file, sep="\t")[['Sample', 'Phenotype']].drop_duplicates()
     probands = probands[probands['Phenotype'].notnull()]
 
     Ontology()  # Load HPO Ontology
@@ -434,7 +434,7 @@ def process_phenotype_data(hpo_file, genemap_file, probands_file, output_prefix=
     )
 
     # Save results
-    all_comparisons.to_csv(f"{output_prefix}.csv.gz", compression = "gzip")
-    all_comparisons_long.to_csv(f"{output_prefix}_longFormat.csv.gz", index=False, compression = "gzip")
+    all_comparisons.to_csv(f"{output_prefix}.tsv.gz", compression = "gzip", sep="\t")
+    all_comparisons_long.to_csv(f"{output_prefix}_longFormat.tsv.gz", index=False, compression = "gzip", sep="\t")
 
     return all_comparisons, all_comparisons_long
