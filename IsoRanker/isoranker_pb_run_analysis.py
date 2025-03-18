@@ -46,7 +46,7 @@ def main():
     parser.add_argument("--hpo_file_path", required=True, help="Path to the file that matches HPO terms to OMIM. Download from here: https://hpo.jax.org/data/annotations.")
     parser.add_argument("--probands_file_path", required=True, help="Path to the file that contains proband HPO terms.")
     parser.add_argument("--reference_fasta_path", required=True, help="Path to the hg38 reference fasta path.")
-    parser.add_argument("--output_dir", required=True, help="Directory to save the output files.")
+    parser.add_argument("--final_output_dir", required=True, help="Directory to save the output files.")
 
     args = parser.parse_args()
 
@@ -60,8 +60,11 @@ def main():
     hpo_file_path = args.hpo_file_path
     probands_file_path = args.probands_file_path
     reference_fasta_path = args.reference_fasta_path
+    final_output_dir = args.final_output_dir
+
     #output_dir = "."
-    output_dir = args.output_dir
+
+    output_dir = final_output_dir
 
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
