@@ -9,7 +9,6 @@ import shutil
 import argparse
 
 from IsoRanker import (
-    load_data,
     filter_based_on_counts,
     apply_hypothesis_test,
     calculate_z_score,

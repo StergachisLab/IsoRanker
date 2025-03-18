@@ -2,7 +2,6 @@ import unittest
 import pandas as pd
 import numpy as np
 from IsoRanker import (
-    load_data,
     filter_based_on_counts,
     calculate_ranks_for_sample,
     NMD_test_statistic,
@@ -20,14 +19,6 @@ from IsoRanker import (
 
 # Private import helper functions
 from IsoRanker.expression_matrix import parse_read_stats
-
-class TestIO(unittest.TestCase):
-    def test_load_data(self):
-        test_tsv = "test_data.tsv"
-        pd.DataFrame({"A": [1, 2], "B": [3, 4]}).to_csv(test_tsv, index=False, sep="\t")
-        df = load_data(test_tsv)
-        self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(df.shape, (2, 2))
 
 class TestPreprocessing(unittest.TestCase):
     def test_filter_based_on_counts(self):

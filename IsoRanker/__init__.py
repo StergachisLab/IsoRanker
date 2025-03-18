@@ -1,4 +1,3 @@
-from .io import load_data
 from .preprocessing import (
     filter_based_on_counts, 
     update_files_with_haplotype_info
