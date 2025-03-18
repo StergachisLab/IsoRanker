@@ -62,9 +62,9 @@ def main():
     reference_fasta_path = args.reference_fasta_path
     final_output_dir = args.final_output_dir
 
-    #output_dir = "."
+    output_dir = "."
 
-    output_dir = final_output_dir
+    #output_dir = final_output_dir
 
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -447,7 +447,7 @@ def main():
 
     # Define folder names
     #OUTPUT_FOLDER = "Output"
-    OUTPUT_FOLDER = output_dir
+    OUTPUT_FOLDER = final_output_dir
     QC_FOLDER = os.path.join(OUTPUT_FOLDER, "qc")
     BROWSER_FOLDER = os.path.join(OUTPUT_FOLDER, "browser")
     LOOKUP_TABLES_FOLDER = os.path.join(BROWSER_FOLDER, "lookup_tables")
