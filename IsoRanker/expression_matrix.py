@@ -54,7 +54,7 @@ def create_expression_matrix(file_path, output_file=None):
     
     # Save to a CSV file if specified
     if output_file:
-        df.to_csv(output_file, index=True, compression="gzip")
+        df.to_csv(output_file, index=True, compression="gzip", sep="\t")
     
     return df
 
