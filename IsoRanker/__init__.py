@@ -24,7 +24,8 @@ from .post_ranking_annotations import (
     merge_tsvs_by_keyword, 
     process_vep_vcf, 
     merge_haplotype_data, 
-    process_phenotype_data
+    process_phenotype_data,
+    split_fusion_genes
 )
 from .qc import(
     process_and_plot_pca,

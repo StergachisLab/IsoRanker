@@ -438,3 +438,37 @@ def process_phenotype_data(hpo_file, genemap_file, probands_file, output_prefix=
     all_comparisons_long.to_csv(f"{output_prefix}_longFormat.tsv.gz", index=False, compression = "gzip", sep="\t")
 
     return all_comparisons, all_comparisons_long
+
+
+def split_fusion_genes(df, gene_col="associated_gene", preserve_col="original_associated_gene"):
+    """
+    Splits rows where the gene_col contains an underscore (excluding 'novel'),
+    duplicating rows for each gene while preserving other column values.
+    
+    Parameters:
+    - df: pandas DataFrame
+    - gene_col: column name with potentially fused gene names (default: 'associated_gene')
+    - preserve_col: column name to store the original fused gene string
+    
+    Returns:
+    - Expanded DataFrame with split genes
+    """
+    df = df.copy()
+    
+    # Preserve original values
+    df[preserve_col] = df[gene_col]
+    
+    # Identify rows to split (fusion genes, not containing 'novel')
+    mask = df[gene_col].str.contains("_") & ~df[gene_col].str.contains("novel", case=False, na=False)
+    rows_to_split = df[mask]
+    rows_to_keep = df[~mask]
+    
+    # Split and explode
+    split_rows = rows_to_split.copy()
+    split_rows[gene_col] = split_rows[gene_col].str.split("_")
+    split_rows = split_rows.explode(gene_col)
+    
+    # Combine
+    df_expanded = pd.concat([rows_to_keep, split_rows], ignore_index=True)
+    
+    return df_expanded
