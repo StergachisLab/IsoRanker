@@ -455,8 +455,9 @@ def split_fusion_genes(df, gene_col="associated_gene", preserve_col="original_as
     """
     df = df.copy()
     
-    # Preserve original values
-    df[preserve_col] = df[gene_col]
+    # Only add preserve_col if it doesn't already exist
+    if preserve_col not in df.columns:
+        df[preserve_col] = df[gene_col]
     
     # Identify rows to split (fusion genes, not containing 'novel')
     mask = df[gene_col].str.contains("_") & ~df[gene_col].str.contains("novel", case=False, na=False)
