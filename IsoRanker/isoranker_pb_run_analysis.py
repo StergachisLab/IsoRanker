@@ -30,7 +30,8 @@ from IsoRanker import (
     process_phenotype_data,
     process_and_plot_pca,
     analyze_isoforms,
-    process_pileup
+    process_pileup,
+    split_fusion_genes
 )
 
 def main():
@@ -149,6 +150,8 @@ def main():
 
         filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
 
+        filtered_ranked_data = split_fusion_genes(filtered_ranked_data)
+
         # Add OMIM data to genes
         filtered_ranked_data = filtered_ranked_data.merge(
             genemap[['Approved Gene Symbol', 'Phenotypes']],  # Select relevant columns from genemap
@@ -191,6 +194,8 @@ def main():
             filter_count_threshold=10)
 
         filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
+
+        filtered_ranked_data = split_fusion_genes(filtered_ranked_data)
 
         # Add OMIM data to genes
         filtered_ranked_data = filtered_ranked_data.merge(
