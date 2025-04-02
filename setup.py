@@ -7,7 +7,7 @@ setup(
     install_requires=[
         "pandas>=2.0.0",
         "numpy>=1.24",
-        "matplotlib>=3.10.0",
+        "matplotlib>=3.5",
         "statsmodels>=0.14.4",
         "seaborn>=0.13.2",
         "scipy>=1.15.1",
