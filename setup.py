@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "pandas>=2.0.0",
-        "numpynumpy>=1.24",
+        "numpy>=1.24",
         "matplotlib>=3.10.0",
         "statsmodels>=0.14.4",
         "seaborn>=0.13.2",
