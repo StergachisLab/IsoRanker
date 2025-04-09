@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import re
 from pyhpo import stats, Ontology, HPOSet
+from pathlib import Path
 
 
 def merge_tsvs_by_keyword(directory, keyword, output_tsv):
@@ -44,185 +45,6 @@ def merge_tsvs_by_keyword(directory, keyword, output_tsv):
     merged_df.to_csv(output_tsv, index=False, compression = "gzip", sep="\t")
     print(f"Merged {len(tsv_files)} '{keyword}' files into: {output_tsv}")
 
-
-def process_vep_vcf(vcf_file, output_dir, output_filename):
-    """
-    Processes a VEP-annotated VCF file to filter variants, extract genotypes, 
-    and generate structured summary tables including the highest SpliceAI score.
-
-    Parameters:
-    - vcf_file (str): Path to the input VCF file.
-    - output_dir (str): Directory where output tsv files will be saved.
-    - output_filename (str): Base name for the output files (without extension).
-
-    Returns:
-    - df (pd.DataFrame): DataFrame containing all filtered variants.
-    - df_final (pd.DataFrame): DataFrame summarizing variants grouped by gene and haplotype.
-    """
-
-    # Make sure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Open VCF
-    vcf = pysam.VariantFile(vcf_file)
-
-    # Extract CSQ header fields
-    csq_fields = vcf.header.info['CSQ'].description.split(": ")[1].split("|")
-
-    variant_data = []
-
-    for record in vcf:
-        chrom = record.chrom
-        pos = record.pos
-        ref = record.ref
-        alts = record.alts
-        qual = record.qual  # Variant quality score
-
-        if qual is None or qual < 30:  # Filter out low-quality variants
-            continue
-
-        # Extract all INFO fields except CSQ
-        variant_info = {key: record.info.get(key, None) for key in vcf.header.info.keys() if key != "CSQ"}
-
-        # Extract CSQ field and create separate rows
-        if "CSQ" in record.info:
-            for csq_entry in record.info["CSQ"]:
-                csq_values = csq_entry.split("|")
-                csq_dict = dict(zip(csq_fields, csq_values))  # Convert CSQ into dictionary
-
-                # Extract MAX_AF safely (handling scientific notation)
-                max_af_str = csq_dict.get("MAX_AF", "1")  # Default to "1" if missing
-                try:
-                    max_af = float(max_af_str)  # Converts both decimal & scientific notation safely
-                except ValueError:
-                    max_af = 1.0  # If conversion fails, default to 1.0
-
-                # Apply MAX_AF filter (removes common variants)
-                if max_af >= 0.01:
-                    continue  # Skip high-frequency variants
-
-                # Extract SpliceAI fields and get the highest SpliceAI score
-                spliceai_columns = [
-                    "SpliceAI_pred_DS_AG", "SpliceAI_pred_DS_AL", "SpliceAI_pred_DS_DG", "SpliceAI_pred_DS_DL"
-                ]
-
-                spliceai_scores = []
-                for col in spliceai_columns:
-                    value = csq_dict.get(col, "0")  # Get value, default to "0" if missing
-                    try:
-                        spliceai_scores.append(float(value))  # Convert safely
-                    except ValueError:
-                        spliceai_scores.append(0)  # Default to 0 if conversion fails
-                
-                highest_spliceai_score = max(spliceai_scores)  # Get the highest score
-
-                # Determine SpliceAI Score Category
-                if highest_spliceai_score > 0.5:
-                    spliceai_high_score_flag = "SpliceAI_High_Score"
-                elif highest_spliceai_score > 0.2:
-                    spliceai_high_score_flag = "SpliceAI_Moderate_Score"
-                else:
-                    spliceai_high_score_flag = ""  # Empty if = 0.2
-
-                # Extract SpliceAI_pred_SYMBOL
-                spliceai_pred_symbol = csq_dict.get("SpliceAI_pred_SYMBOL", "")
-
-                # Initialize row with variant and CSQ data
-                variant_entry = {
-                    "CHROM": chrom,
-                    "POS": pos,
-                    "REF": ref,
-                    "ALT": alts[0],
-                    "QUAL": qual,
-                    "MAX_AF": max_af,
-                    "Highest_SpliceAI_Score": highest_spliceai_score,
-                    "SpliceAI_High_Score_Flag": spliceai_high_score_flag,
-                    "SpliceAI_pred_SYMBOL": spliceai_pred_symbol,
-                    **variant_info,  # Add all INFO fields
-                    **csq_dict,  # Add all CSQ fields
-                }
-
-                # Extract genotypes for each sample (handling phased/unphased)
-                for sample in vcf.header.samples:
-                    genotype_tuple = record.samples[sample]["GT"]  # Get GT as a tuple (e.g., (0,1))
-                    is_phased = record.samples[sample].phased  # Check if phased
-
-                    if genotype_tuple is not None:
-                        separator = "|" if is_phased else "/"  # Use "|" for phased, "/" for unphased
-                        genotype_str = separator.join(map(str, genotype_tuple))  # Convert to string
-                    else:
-                        genotype_str = "NA"  # Handle missing genotype
-
-                    variant_entry[f"GT_{sample}"] = genotype_str  # Store GT per sample
-
-                # Append the variant entry to the list
-                variant_data.append(variant_entry)
-
-    # Convert to DataFrame
-    df = pd.DataFrame(variant_data)
-
-    # Save df.tsv
-    df_tsv_path = os.path.join(output_dir, f"{output_filename}_vcf_vep_filtered.tsv")
-    df.to_csv(df_tsv_path, index=False, sep="\t")
-    print(f"Saved: {df_tsv_path}")
-
-    # Process df to generate df_final
-    required_columns = {"SYMBOL", "HGVSg", "MAX_AF", "CLIN_SIG", "Consequence"}
-    genotype_columns = [col for col in df.columns if col.startswith("GT_")]  # Identify genotype columns
-
-    # Initialize new structure
-    haplotype_data = {}
-
-    # Process each variant in df
-    for _, row in df.iterrows():
-        gene = row["SYMBOL"]
-        hgvs = row["HGVSg"]
-        max_af = row["MAX_AF"]
-        clin_sig = row["CLIN_SIG"]
-        consequence = row["Consequence"]
-        highest_spliceai_score = row["Highest_SpliceAI_Score"]
-        spliceai_high_score_flag = row["SpliceAI_High_Score_Flag"]
-        spliceai_pred_symbol = row["SpliceAI_pred_SYMBOL"]
-
-        # Format the variant string with SpliceAI information
-        variant_info = f"({hgvs},{max_af},{clin_sig},{consequence},{highest_spliceai_score},{spliceai_high_score_flag},{spliceai_pred_symbol})"
-
-        if gene not in haplotype_data:
-            haplotype_data[gene] = {"Hap1": [], "Hap2": [], "Hap0": []}
-
-        for sample in genotype_columns:
-            genotype = row[sample]
-
-            if genotype == "1|0":  # Heterozygous (haplotype 1)
-                haplotype_data[gene]["Hap1"].append(variant_info)
-
-            elif genotype == "0|1":  # Heterozygous (haplotype 2)
-                haplotype_data[gene]["Hap2"].append(variant_info)
-
-            elif genotype == "0/1":  # Unphased heterozygous
-                haplotype_data[gene]["Hap0"].append(variant_info)
-
-            elif genotype == "1/1":  # Homozygous ? Include in both Hap1 and Hap2
-                haplotype_data[gene]["Hap1"].append(variant_info)
-                haplotype_data[gene]["Hap2"].append(variant_info)
-
-    # Convert to DataFrame
-    final_data = [
-        {"Gene": gene, 
-         "Hap1": "; ".join(set(data["Hap1"])), 
-         "Hap2": "; ".join(set(data["Hap2"])), 
-         "Hap0": "; ".join(set(data["Hap0"]))}
-        for gene, data in haplotype_data.items()
-    ]
-
-    df_final = pd.DataFrame(final_data)
-
-    # Save df_final.tsv
-    df_final_tsv_path = os.path.join(output_dir, f"{output_filename}_gene_haplotype_split.tsv", sep="\t")
-    df_final.to_csv(df_final_tsv_path, index=False, sep="\t")
-    print(f"Saved: {df_final_tsv_path}")
-
-    return df, df_final
 
 
 # I think this is deprecated
@@ -473,3 +295,336 @@ def split_fusion_genes(df, gene_col="associated_gene", preserve_col="original_as
     df_expanded = pd.concat([rows_to_keep, split_rows], ignore_index=True)
     
     return df_expanded
+
+
+###########################################
+# Variant annotation functions start here
+###########################################
+
+def process_vep_vcf(vcf_file, output_dir, output_filename):
+    """
+    Processes a VEP-annotated VCF file to filter variants, extract genotypes, 
+    and generate structured summary tables including SpliceAI/CADD/ClinVar annotations.
+
+    Parameters:
+    - vcf_file (str): Path to the input VCF file.
+    - output_dir (str): Directory where output tsv files will be saved.
+    - output_filename (str): Base name for the output files (without extension).
+
+    Returns:
+    - df (pd.DataFrame): DataFrame containing all filtered variants.
+    - df_final (pd.DataFrame): DataFrame summarizing variants grouped by gene and haplotype.
+    """
+
+    os.makedirs(output_dir, exist_ok=True)
+    vcf = pysam.VariantFile(vcf_file)
+    csq_fields = vcf.header.info['CSQ'].description.split(": ")[1].split("|")
+
+    variant_data = []
+
+    for record in vcf:
+        chrom = record.chrom
+        pos = record.pos
+        ref = record.ref
+        alts = record.alts
+        qual = record.qual
+
+        if qual is None or qual < 30:
+            continue
+
+        variant_info = {key: record.info.get(key, None) for key in vcf.header.info.keys() if key != "CSQ"}
+
+        if "CSQ" in record.info:
+            for csq_entry in record.info["CSQ"]:
+                csq_values = csq_entry.split("|")
+                csq_dict = dict(zip(csq_fields, csq_values))
+
+                max_af_str = csq_dict.get("MAX_AF", "1")
+                try:
+                    max_af = float(max_af_str)
+                except ValueError:
+                    max_af = 1.0
+
+                if max_af >= 0.01:
+                    continue
+
+                spliceai_columns = [
+                    "SpliceAI_pred_DS_AG", "SpliceAI_pred_DS_AL", 
+                    "SpliceAI_pred_DS_DG", "SpliceAI_pred_DS_DL"
+                ]
+                spliceai_scores = []
+                for col in spliceai_columns:
+                    value = csq_dict.get(col, "0")
+                    try:
+                        spliceai_scores.append(float(value))
+                    except ValueError:
+                        spliceai_scores.append(0)
+                highest_spliceai_score = max(spliceai_scores)
+
+                if highest_spliceai_score > 0.5:
+                    spliceai_high_score_flag = "SpliceAI_High_Score"
+                elif highest_spliceai_score > 0.2:
+                    spliceai_high_score_flag = "SpliceAI_Moderate_Score"
+                else:
+                    spliceai_high_score_flag = ""
+
+                spliceai_pred_symbol = csq_dict.get("SpliceAI_pred_SYMBOL", "")
+
+                # CADD score flag
+                cadd_phred_str = csq_dict.get("CADD_PHRED", "0")
+                try:
+                    cadd_score = float(cadd_phred_str)
+                except ValueError:
+                    cadd_score = 0.0
+                cadd_high_score_flag = "CADD_High_Score" if cadd_score > 15 else ""
+
+                clinvar_clnsig = csq_dict.get("ClinVar_CLNSIG", "")
+                clinvar_clndn = csq_dict.get("ClinVar_CLNDN", "")
+
+                # Construct CHROM_POS_REF/ALT
+                chrom_pos_refalt = f"{chrom}_{pos}_{ref}/{alts[0]}"
+
+                variant_entry = {
+                    "#CHROM_POS_REF/ALT": chrom_pos_refalt,
+                    "CHROM": chrom,
+                    "POS": pos,
+                    "REF": ref,
+                    "ALT": alts[0],
+                    "QUAL": qual,
+                    "MAX_AF": max_af,
+                    "Highest_SpliceAI_Score": highest_spliceai_score,
+                    "SpliceAI_High_Score_Flag": spliceai_high_score_flag,
+                    "SpliceAI_pred_SYMBOL": spliceai_pred_symbol,
+                    "CADD_PHRED": cadd_phred_str,
+                    "CADD_High_Score_Flag": cadd_high_score_flag,
+                    "ClinVar_CLNSIG": clinvar_clnsig,
+                    "ClinVar_CLNDN": clinvar_clndn,
+                    **variant_info,
+                    **csq_dict,
+                }
+
+                for sample in vcf.header.samples:
+                    genotype_tuple = record.samples[sample]["GT"]
+                    is_phased = record.samples[sample].phased
+
+                    if genotype_tuple is not None:
+                        separator = "|" if is_phased else "/"
+                        genotype_str = separator.join(map(str, genotype_tuple))
+                    else:
+                        genotype_str = "NA"
+
+                    variant_entry[f"GT_{sample}"] = genotype_str
+
+                variant_data.append(variant_entry)
+
+    df = pd.DataFrame(variant_data)
+    df_tsv_path = os.path.join(output_dir, f"{output_filename}_vcf_vep_filtered.tsv")
+    df.to_csv(df_tsv_path, index=False, sep="\t")
+    print(f"Saved: {df_tsv_path}")
+
+    genotype_columns = [col for col in df.columns if col.startswith("GT_")]
+    haplotype_data = {}
+
+    for _, row in df.iterrows():
+        gene = row.get("SYMBOL", "")
+        variant_id = row["#CHROM_POS_REF/ALT"]
+        max_af = row["MAX_AF"]
+        clin_sig = row.get("ClinVar_CLNSIG", "")
+        clin_disease = row.get("ClinVar_CLNDN", "")
+        consequence = row.get("Consequence", "")
+        highest_spliceai_score = row["Highest_SpliceAI_Score"]
+        spliceai_high_score_flag = row["SpliceAI_High_Score_Flag"]
+        spliceai_pred_symbol = row["SpliceAI_pred_SYMBOL"]
+        cadd_score = row["CADD_PHRED"]
+        cadd_high_score_flag = row["CADD_High_Score_Flag"]
+
+        variant_info = (
+            f"({variant_id},{max_af},{clin_sig},{clin_disease},{consequence},"
+            f"{highest_spliceai_score},{spliceai_high_score_flag},"
+            f"{spliceai_pred_symbol},{cadd_score},{cadd_high_score_flag})"
+        )
+
+        if gene not in haplotype_data:
+            haplotype_data[gene] = {"Hap1": [], "Hap2": [], "Hap0": []}
+
+        for sample in genotype_columns:
+            genotype = row[sample]
+
+            if genotype == "1|0":
+                haplotype_data[gene]["Hap1"].append(variant_info)
+            elif genotype == "0|1":
+                haplotype_data[gene]["Hap2"].append(variant_info)
+            elif genotype == "0/1":
+                haplotype_data[gene]["Hap0"].append(variant_info)
+            elif genotype == "1/1":
+                haplotype_data[gene]["Hap1"].append(variant_info)
+                haplotype_data[gene]["Hap2"].append(variant_info)
+
+    final_data = [
+        {
+            "Gene": gene,
+            "Hap1": "; ".join(set(data["Hap1"])),
+            "Hap2": "; ".join(set(data["Hap2"])),
+            "Hap0": "; ".join(set(data["Hap0"]))
+        }
+        for gene, data in haplotype_data.items()
+    ]
+
+    df_final = pd.DataFrame(final_data)
+    df_final_tsv_path = os.path.join(output_dir, f"{output_filename}_gene_haplotype_split.tsv")
+    df_final.to_csv(df_final_tsv_path, index=False, sep="\t")
+    print(f"Saved: {df_final_tsv_path}")
+
+    return df, df_final
+
+
+def write_sample_gene_lists(
+    gene_file,
+    isoform_file,
+    output_dir="gene_lists_by_sample"
+):
+    """
+    Reads gene and isoform result TSV files, extracts associated genes by sample,
+    and writes one gene list per sample into the specified output directory.
+
+    Parameters:
+    - gene_file (str): Path to the gene-level TSV file.
+    - isoform_file (str): Path to the isoform-level TSV file.
+    - output_dir (str): Directory to write per-sample gene list files. Default is "gene_lists_by_sample".
+    """
+    
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Load and concatenate the relevant data
+    gene_df = pd.read_csv(gene_file, sep="\t", usecols=["Sample", "associated_gene"])
+    iso_df = pd.read_csv(isoform_file, sep="\t", usecols=["Sample", "associated_gene"])
+    combined_df = pd.concat([gene_df, iso_df], ignore_index=True)
+
+    # Drop rows with missing data
+    combined_df.dropna(subset=["Sample", "associated_gene"], inplace=True)
+
+    # Group by Sample and get unique associated genes
+    grouped = combined_df.groupby("Sample")["associated_gene"].apply(lambda x: sorted(set(x)))
+
+    # Write each sample's gene list to a file
+    for sample, gene_list in grouped.items():
+        safe_sample = sample.replace("/", "_").replace(" ", "_")
+        output_path = Path(output_dir) / f"{safe_sample}_gene_list.txt"
+        with open(output_path, "w") as f:
+            for gene in gene_list:
+                f.write(f"{gene}\n")
+
+    print(f"Gene lists written to: {output_dir}")
+
+
+def passes_max_af_filter(record, max_af_index, max_af_cutoff):
+    if "CSQ" not in record.info:
+        return False
+    for annotation in record.info["CSQ"]:
+        fields = annotation.split("|")
+        try:
+            af_str = fields[max_af_index]
+            if af_str and float(af_str) <= max_af_cutoff:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def filter_multiple_vcfs(pair_list_path, flank=1000, max_af_cutoff=0.01,
+                         gtf_path="/mmfs1/gscratch/stergachislab/asedeno/data/reference_files/gencode.v47.annotation.gtf"):
+    if not os.path.isfile(pair_list_path):
+        raise FileNotFoundError(f"Pair list file not found: {pair_list_path}")
+    if not os.path.isfile(gtf_path):
+        raise FileNotFoundError(f"GTF file not found: {gtf_path}")
+
+    os.makedirs("subsetted_vcfs", exist_ok=True)
+
+    # Parse GTF into a dictionary of gene -> (chrom, start, end)
+    gene_coords = {}
+    with open(gtf_path, 'r') as gtf:
+        for line in gtf:
+            if line.startswith('#'):
+                continue
+            fields = line.strip().split('\t')
+            if len(fields) < 9 or fields[2] != 'gene':
+                continue
+            chrom, start, end, attr = fields[0], int(fields[3]), int(fields[4]), fields[8]
+            if 'gene_name' in attr:
+                gene_name = attr.split('gene_name "')[1].split('"')[0]
+                if gene_name not in gene_coords:
+                    gene_coords[gene_name] = (chrom, start, end)
+
+    df = pd.read_csv(pair_list_path, sep="\t")
+
+    for idx, row in df.iterrows():
+        gene_list_file = row["gene_list"]
+        vcf_in = row["patient_vcf"]
+
+        if not os.path.isfile(gene_list_file):
+            print(f"  Error: Gene list file not found: {gene_list_file}. Skipping.")
+            continue
+        if not os.path.isfile(vcf_in):
+            print(f"  Error: VCF file not found: {vcf_in}. Skipping.")
+            continue
+
+        input_name = os.path.basename(vcf_in)
+        name_parts = input_name.split(".vcf")
+        vcf_out = os.path.join("subsetted_vcfs", f"{name_parts[0]}.isoranker_subsetted.vcf{name_parts[1] if len(name_parts) > 1 else ''}")
+
+        print(f"Processing pair:\n  Gene list: {gene_list_file}\n  Input VCF: {vcf_in}\n  Output VCF: {vcf_out}\n  Flank: {flank} bp")
+
+        with open(gene_list_file) as gf:
+            genes = [g.strip() for g in gf if g.strip()]
+
+        regions = []
+        for gene in genes:
+            if gene in gene_coords:
+                chrom, start, end = gene_coords[gene]
+                start_flank = max(0, start - flank)
+                end_flank = end + flank
+                regions.append((chrom, start_flank, end_flank))
+            else:
+                print(f"  Warning: {gene} not found in GTF.")
+
+        if not regions:
+            print(f"  No valid regions for {vcf_out}. Skipping.")
+            continue
+
+        vcf_infile = pysam.VariantFile(vcf_in)
+        vcf_outfile = pysam.VariantFile(vcf_out, 'w', header=vcf_infile.header)
+
+        csq_desc = vcf_infile.header.info["CSQ"].description
+        csq_format_str = csq_desc.split("Format: ")[1]
+        csq_fields = csq_format_str.strip().split("|")
+        try:
+            max_af_index = csq_fields.index("MAX_AF")
+        except ValueError:
+            raise ValueError("MAX_AF not found in CSQ field format.")
+
+        filtered_records = []
+        for chrom, start, end in regions:
+            try:
+                for record in vcf_infile.fetch(chrom, start, end):
+                    if passes_max_af_filter(record, max_af_index=max_af_index, max_af_cutoff=max_af_cutoff):
+                        filtered_records.append(record)
+            except ValueError as e:
+                print(f"  Warning: Region {chrom}:{start}-{end} not found in VCF: {e}")
+
+        filtered_records.sort(key=lambda r: (r.contig, r.pos))
+
+        for record in filtered_records:
+            vcf_outfile.write(record)
+
+        vcf_outfile.close()
+
+        if vcf_out.endswith(".vcf.gz"):
+            try:
+                pysam.tabix_index(vcf_out, preset="vcf", force=True)
+                print(f"Indexed: {vcf_out}.tbi")
+            except Exception as e:
+                print(f"  Error indexing {vcf_out}: {e}")
+
+        print(f"Finished: {vcf_out}\n-----------------------------")
+
+    print("All done!")
