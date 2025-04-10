@@ -2,6 +2,27 @@ import os
 import pandas as pd
 
 def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_stats_path, output_dir):
+    """
+    Updates read statistics and sample metadata with haplotype information.
+
+    This function performs the following steps:
+    - Loads `sample_info_with_haplotype_location`, which contains paths to haplotype assignment files.
+    - Loads a read-level summary table (`read_stats.txt`) with IDs for each read.
+    - For each sample, appends haplotype assignments (H0/H1/H2) to the read ID in `read_stats`.
+    - Generates a new version of `sample_info` where each sample is duplicated per haplotype.
+    - Writes two outputs:
+        - `updated_read_stats.txt.gz`: updated read stats with haplotype-annotated IDs.
+        - `updated_sample_info.tsv.gz`: expanded sample metadata for each haplotype.
+
+    Parameters:
+    - sample_info_with_haplotype_location (str): Path to a TSV file containing columns `sample` and `haplotype`, where `haplotype` points to a file with read-level haplotype assignments.
+    - read_stats_path (str): Path to the original read stats file (`read_stats.txt`), with a column `id`.
+    - output_dir (str): Directory where updated output files will be written.
+
+    Returns:
+    - None: Writes updated read stats and sample info files to the specified output directory.
+    """
+    
     os.makedirs(output_dir, exist_ok=True)
 
     # Load sample_info_with_haplotype_location.tsv
