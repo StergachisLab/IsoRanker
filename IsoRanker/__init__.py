@@ -25,7 +25,10 @@ from .post_ranking_annotations import (
     process_vep_vcf, 
     merge_haplotype_data, 
     process_phenotype_data,
-    split_fusion_genes
+    split_fusion_genes,
+    write_sample_gene_lists,
+    passes_max_af_filter,
+    filter_multiple_vcfs
 )
 from .qc import(
     process_and_plot_pca,
