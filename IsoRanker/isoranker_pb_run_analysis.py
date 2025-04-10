@@ -31,7 +31,10 @@ from IsoRanker import (
     process_and_plot_pca,
     analyze_isoforms,
     process_pileup,
-    split_fusion_genes
+    split_fusion_genes,
+    write_sample_gene_lists,
+    passes_max_af_filter,
+    filter_multiple_vcfs
 )
 
 def main():
@@ -48,6 +51,8 @@ def main():
     parser.add_argument("--probands_file_path", required=True, help="Path to the file that contains proband HPO terms.")
     parser.add_argument("--reference_fasta_path", required=True, help="Path to the hg38 reference fasta path.")
     parser.add_argument("--final_output_dir", required=True, help="Directory to save the output files.")
+    parser.add_argument("--gtf_path_input", required=True, help="Path to gencode reference file.")
+
 
     args = parser.parse_args()
 
@@ -62,6 +67,7 @@ def main():
     probands_file_path = args.probands_file_path
     reference_fasta_path = args.reference_fasta_path
     final_output_dir = args.final_output_dir
+    gtf_path_input = args.gtf_path_input
 
     output_dir = "."
 
@@ -264,6 +270,97 @@ def main():
 
     # Save merged output
     merged_data.to_csv("merged_ranked_isoform_with_phenotype.tsv.gz", index=False, compression = "gzip", sep="\t")
+
+    ################################################
+    # Add genetic variant information
+    ################################################
+
+    ### Make gene list
+    gene_file_input = "merged_ranked_gene_with_phenotype.tsv.gz"
+    isoform_file_input = "merged_ranked_isoform_with_phenotype.tsv.gz"
+
+    write_sample_gene_lists(
+        gene_file=gene_file_input,
+        isoform_file=isoform_file_input,
+        output_dir="gene_lists_by_sample"
+    )
+
+    ### Subset vcfs based on gene lists and frequency
+    filter_multiple_vcfs(pair_list_path=sample_info_path, 
+                         gene_list_dir="gene_lists_by_sample",
+                         flank=50, 
+                         max_af_cutoff=0.01, 
+                         gtf_path=gtf_path_input,
+                         output_dir="subsetted_vcfs")
+
+
+    ### Extract annotations and genotype into table format so that the information can be added to the IsoRanker tables
+    input_vcf_dir = "subsetted_vcfs"
+    output_base_dir = "variant_annotations_tables"
+
+    os.makedirs(output_base_dir, exist_ok=True)
+
+    for individual in sample_info['individual'].unique():
+        vcf_path = os.path.join(input_vcf_dir, f"{individual}.isoranker_subsetted.vcf.gz")
+        os.makedirs(output_base_dir, exist_ok=True)
+
+        if os.path.exists(vcf_path):
+            print(f"Processing {individual}...")
+            process_vep_vcf(vcf_path, output_base_dir, individual)
+        else:
+            print(f"VCF not found for {individual}: {vcf_path}")
+
+
+    ### Add annotations to isoranker tables
+    gene_level_merged_df = pd.read_csv(gene_file_input, sep="\t")
+
+    isoform_level_merged_df = pd.read_csv(isoform_file_input, sep="\t")
+
+    # Placeholder for merged haplotype data
+    haplotype_entries = []
+
+    # For each sample in gene_level_merged_df
+    for sample in gene_level_merged_df['Sample'].unique():
+        tsv_path = f"variant_annotations_tables/{sample}_gene_haplotype_split.tsv"
+        
+        if os.path.exists(tsv_path):
+            # Load haplotype data
+            haplo_df = pd.read_csv(tsv_path, sep="\t")
+            haplo_df["Sample"] = sample  # tag with sample for merge
+            
+            haplotype_entries.append(haplo_df)
+        else:
+            print(f"Haplotype TSV not found for {sample}")
+
+    # Combine all haplotype info
+    all_haplo = pd.concat(haplotype_entries, ignore_index=True)
+
+    # Rename for clarity to match gene_level_merged_df
+    all_haplo.rename(columns={"Gene": "associated_gene"}, inplace=True)
+
+    # Merge into your existing gene-level dataframe
+    gene_level_merged_df_variant_annotated = gene_level_merged_df.merge(
+        all_haplo, how="left", on=["Sample", "associated_gene"]
+    )
+    gene_level_merged_df_variant_annotated.to_csv('merged_ranked_gene_with_phenotype_with_variant.tsv.gz', index=False, sep="\t", compression="gzip")
+
+    # Merge into your existing gene-level dataframe
+    isoform_level_merged_df_variant_annotated = isoform_level_merged_df.merge(
+        all_haplo, how="left", on=["Sample", "associated_gene"]
+    )
+    isoform_level_merged_df_variant_annotated.to_csv('merged_ranked_isoform_with_phenotype_with_variant.tsv.gz', index=False, sep="\t", compression="gzip")
+
+    classification_data = classification_data[['isoform', 'structural_category', 'subcategory']]
+
+    isoform_level_merged_df_variant_annotated_pigeon = isoform_level_merged_df_variant_annotated.merge(
+        classification_data,
+        left_on="Isoform",   # Match isoform IDs in long_format_df
+        right_on="isoform",  # Match isoform IDs in classification_subset
+        how="left"           # Keep all rows from long_format_df, even if there's no match in classification_subset
+    ).drop(columns=["isoform"])  # Drop redundant 'isoform' column from classification_subset
+
+    isoform_level_merged_df_variant_annotated_pigeon.to_csv('merged_ranked_isoform_with_phenotype_with_variant_with_pigeon.tsv.gz', index=False, sep="\t", compression="gzip")
+
 
     ################################################
     # Create lookup tables
@@ -487,7 +584,10 @@ def main():
 
     combined_results_files = {
         "merged_ranked_gene_with_phenotype.tsv.gz",
-        "merged_ranked_isoform_with_phenotype.tsv.gz"
+        "merged_ranked_isoform_with_phenotype.tsv.gz",
+        "merged_ranked_gene_with_phenotype_with_variant.tsv",
+        "merged_ranked_isoform_with_phenotype_with_variant.tsv",
+        "merged_ranked_isoform_with_phenotype_with_variant_with_pigeon.tsv"
     }
 
     separated_results_files = {
@@ -526,6 +626,17 @@ def main():
     move_files(combined_results_files, COMBINED_RESULTS_FOLDER)
     move_files(separated_results_files, SEPARATED_RESULTS_FOLDER)
     move_files(intermediate_files, INTERMEDIATE_FOLDER)
+
+
+    if os.path.isdir("gene_lists_by_sample"):
+    shutil.move("gene_lists_by_sample", INTERMEDIATE_FOLDER)
+
+    if os.path.isdir("subsetted_vcfs"):
+    shutil.move("subsetted_vcfs", INTERMEDIATE_FOLDER)
+
+    if os.path.isdir("variant_annotations_tables"):
+    shutil.move("variant_annotations_tables", INTERMEDIATE_FOLDER)
+
 
     print("File organization complete!")
 
