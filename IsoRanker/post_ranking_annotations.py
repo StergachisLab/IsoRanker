@@ -518,6 +518,18 @@ def write_sample_gene_lists(
 
 
 def passes_max_af_filter(record, max_af_index, max_af_cutoff):
+    """
+    Checks whether a VCF record passes a maximum allele frequency (MAX_AF) filter
+    using annotations from the VEP CSQ field.
+
+    Parameters:
+    - record (pysam.VariantRecord): A single variant record from a VCF file annotated with VEP.
+    - max_af_index (int): Index of the MAX_AF field in the VEP CSQ annotation string.
+    - max_af_cutoff (float): Maximum allowed allele frequency for a variant to be retained.
+
+    Returns:
+    - bool: True if any annotation for the variant has a MAX_AF less than or equal to the cutoff; False otherwise.
+    """
     if "CSQ" not in record.info:
         return False
     for annotation in record.info["CSQ"]:
@@ -533,7 +545,28 @@ def passes_max_af_filter(record, max_af_index, max_af_cutoff):
 def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutoff=0.01,
                          gtf_path="/mmfs1/gscratch/stergachislab/asedeno/data/reference_files/gencode.v47.annotation.gtf",
                          output_dir="subsetted_vcfs"):
+    """
+    Filters multiple VEP-annotated VCF files based on gene regions and allele frequency thresholds.
+    Outputs a subsetted and compressed VCF file for each individual.
 
+    For each row in the pair list TSV, the function:
+    - Locates the individual's VCF file and gene list
+    - Uses a GTF annotation file to find coordinates for genes (with optional flanking region)
+    - Filters variants in the VCF to retain only those within gene regions and passing the MAX_AF threshold
+    - Writes the filtered variants to a compressed VCF file in the output directory
+
+    Parameters:
+    - pair_list_path (str): Path to a TSV file with at least two columns: 'individual' and 'individual_vcf'.
+    - gene_list_dir (str): Directory containing gene list files named as <individual>_gene_list.txt.
+    - flank (int): Number of base pairs to add upstream and downstream of gene coordinates (default: 1000).
+    - max_af_cutoff (float): Maximum allele frequency for a variant to pass filtering (default: 0.01).
+    - gtf_path (str): Path to a GTF file used to extract gene coordinates.
+    - output_dir (str): Directory where the filtered VCF files will be written (default: "subsetted_vcfs").
+
+    Returns:
+    - None: Writes filtered VCF files and tabix indexes to the output directory.
+    """
+    
     if not os.path.isfile(pair_list_path):
         raise FileNotFoundError(f"Pair list file not found: {pair_list_path}")
     if not os.path.isfile(gtf_path):
@@ -625,5 +658,3 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
             print(f"  Error indexing {vcf_out}: {e}")
 
         print(f"Finished: {vcf_out}\n-----------------------------")
-
-    print("All done!")

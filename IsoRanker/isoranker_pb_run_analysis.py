@@ -361,6 +361,7 @@ def main():
 
     isoform_level_merged_df_variant_annotated_pigeon.to_csv('merged_ranked_isoform_with_phenotype_with_variant_with_pigeon.tsv.gz', index=False, sep="\t", compression="gzip")
 
+    # Variants are annotated in this format: # (CHROM_POS_REF/ALT,MAX_AF,ClinVar_CLNSIG,ClinVar_CLNDN,Consequence,SpliceAI_Score,SpliceAI_Flag,Symbol,CADD_PHRED,CADD_Flag)
 
     ################################################
     # Create lookup tables
