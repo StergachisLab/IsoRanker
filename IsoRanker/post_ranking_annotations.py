@@ -530,17 +530,20 @@ def passes_max_af_filter(record, max_af_index, max_af_cutoff):
             continue
     return False
 
+def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutoff=0.01,
+                         gtf_path="/mmfs1/gscratch/stergachislab/asedeno/data/reference_files/gencode.v47.annotation.gtf",
+                         output_dir="subsetted_vcfs"):
 
-def filter_multiple_vcfs(pair_list_path, flank=1000, max_af_cutoff=0.01,
-                         gtf_path="/mmfs1/gscratch/stergachislab/asedeno/data/reference_files/gencode.v47.annotation.gtf"):
     if not os.path.isfile(pair_list_path):
         raise FileNotFoundError(f"Pair list file not found: {pair_list_path}")
     if not os.path.isfile(gtf_path):
         raise FileNotFoundError(f"GTF file not found: {gtf_path}")
+    if not os.path.isdir(gene_list_dir):
+        raise NotADirectoryError(f"Gene list directory not found: {gene_list_dir}")
 
-    os.makedirs("subsetted_vcfs", exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-    # Parse GTF into a dictionary of gene -> (chrom, start, end)
+    # Parse GTF into gene -> (chrom, start, end)
     gene_coords = {}
     with open(gtf_path, 'r') as gtf:
         for line in gtf:
@@ -556,23 +559,22 @@ def filter_multiple_vcfs(pair_list_path, flank=1000, max_af_cutoff=0.01,
                     gene_coords[gene_name] = (chrom, start, end)
 
     df = pd.read_csv(pair_list_path, sep="\t")
+    df = df.drop_duplicates(subset=["individual", "individual_vcf"])
 
     for idx, row in df.iterrows():
-        gene_list_file = row["gene_list"]
-        vcf_in = row["patient_vcf"]
+        individual = row["individual"]
+        gene_list_file = os.path.join(gene_list_dir, f"{individual}_gene_list.txt")
+        vcf_in = row["individual_vcf"]
+        vcf_out = os.path.join(output_dir, f"{individual}.isoranker_subsetted.vcf.gz")
 
         if not os.path.isfile(gene_list_file):
-            print(f"  Error: Gene list file not found: {gene_list_file}. Skipping.")
+            print(f"  Error: Gene list file not found for individual {individual}: {gene_list_file}. Skipping.")
             continue
         if not os.path.isfile(vcf_in):
             print(f"  Error: VCF file not found: {vcf_in}. Skipping.")
             continue
 
-        input_name = os.path.basename(vcf_in)
-        name_parts = input_name.split(".vcf")
-        vcf_out = os.path.join("subsetted_vcfs", f"{name_parts[0]}.isoranker_subsetted.vcf{name_parts[1] if len(name_parts) > 1 else ''}")
-
-        print(f"Processing pair:\n  Gene list: {gene_list_file}\n  Input VCF: {vcf_in}\n  Output VCF: {vcf_out}\n  Flank: {flank} bp")
+        print(f"Processing individual: {individual}\n  Gene list: {gene_list_file}\n  Input VCF: {vcf_in}\n  Output VCF: {vcf_out}\n  Flank: {flank} bp")
 
         with open(gene_list_file) as gf:
             genes = [g.strip() for g in gf if g.strip()]
@@ -581,9 +583,7 @@ def filter_multiple_vcfs(pair_list_path, flank=1000, max_af_cutoff=0.01,
         for gene in genes:
             if gene in gene_coords:
                 chrom, start, end = gene_coords[gene]
-                start_flank = max(0, start - flank)
-                end_flank = end + flank
-                regions.append((chrom, start_flank, end_flank))
+                regions.append((chrom, max(0, start - flank), end + flank))
             else:
                 print(f"  Warning: {gene} not found in GTF.")
 
@@ -591,9 +591,10 @@ def filter_multiple_vcfs(pair_list_path, flank=1000, max_af_cutoff=0.01,
             print(f"  No valid regions for {vcf_out}. Skipping.")
             continue
 
-        vcf_infile = pysam.VariantFile(vcf_in)
-        vcf_outfile = pysam.VariantFile(vcf_out, 'w', header=vcf_infile.header)
+        vcf_infile = pysam.VariantFile(vcf_in, "r")  # handles .vcf or .vcf.gz
+        vcf_outfile = pysam.VariantFile(vcf_out, "wz", header=vcf_infile.header)  # write compressed
 
+        # Get CSQ fields
         csq_desc = vcf_infile.header.info["CSQ"].description
         csq_format_str = csq_desc.split("Format: ")[1]
         csq_fields = csq_format_str.strip().split("|")
@@ -612,18 +613,16 @@ def filter_multiple_vcfs(pair_list_path, flank=1000, max_af_cutoff=0.01,
                 print(f"  Warning: Region {chrom}:{start}-{end} not found in VCF: {e}")
 
         filtered_records.sort(key=lambda r: (r.contig, r.pos))
-
         for record in filtered_records:
             vcf_outfile.write(record)
 
         vcf_outfile.close()
 
-        if vcf_out.endswith(".vcf.gz"):
-            try:
-                pysam.tabix_index(vcf_out, preset="vcf", force=True)
-                print(f"Indexed: {vcf_out}.tbi")
-            except Exception as e:
-                print(f"  Error indexing {vcf_out}: {e}")
+        try:
+            pysam.tabix_index(vcf_out, preset="vcf", force=True)
+            print(f"Indexed: {vcf_out}.tbi")
+        except Exception as e:
+            print(f"  Error indexing {vcf_out}: {e}")
 
         print(f"Finished: {vcf_out}\n-----------------------------")
 
