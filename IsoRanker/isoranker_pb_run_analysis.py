@@ -619,7 +619,7 @@ def main():
             if os.path.exists(file):  # Ensure the file exists before moving
                 shutil.move(file, os.path.join(destination_folder, file))
             else:
-                print(f"Warning: {file} not found, skipping.")
+                print(f"Warning: {file} not found, skipping.", flush=True)
 
     # Move files to their respective folders
     move_files(qc_files, QC_FOLDER)
@@ -630,16 +630,16 @@ def main():
 
 
     if os.path.isdir("gene_lists_by_sample"):
-    shutil.move("gene_lists_by_sample", INTERMEDIATE_FOLDER)
+        shutil.move("gene_lists_by_sample", INTERMEDIATE_FOLDER)
 
     if os.path.isdir("subsetted_vcfs"):
-    shutil.move("subsetted_vcfs", INTERMEDIATE_FOLDER)
+        shutil.move("subsetted_vcfs", INTERMEDIATE_FOLDER)
 
     if os.path.isdir("variant_annotations_tables"):
-    shutil.move("variant_annotations_tables", INTERMEDIATE_FOLDER)
+        shutil.move("variant_annotations_tables", INTERMEDIATE_FOLDER)
 
 
-    print("File organization complete!")
+    print("File organization complete!", flush=True)
 
 
 if __name__ == "__main__":
