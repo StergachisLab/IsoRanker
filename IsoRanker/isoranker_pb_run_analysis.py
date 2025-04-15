@@ -586,9 +586,9 @@ def main():
     combined_results_files = {
         "merged_ranked_gene_with_phenotype.tsv.gz",
         "merged_ranked_isoform_with_phenotype.tsv.gz",
-        "merged_ranked_gene_with_phenotype_with_variant.tsv",
-        "merged_ranked_isoform_with_phenotype_with_variant.tsv",
-        "merged_ranked_isoform_with_phenotype_with_variant_with_pigeon.tsv"
+        "merged_ranked_gene_with_phenotype_with_variant.tsv.gz",
+        "merged_ranked_isoform_with_phenotype_with_variant.tsv.gz",
+        "merged_ranked_isoform_with_phenotype_with_variant_with_pigeon.tsv.gz"
     }
 
     separated_results_files = {
