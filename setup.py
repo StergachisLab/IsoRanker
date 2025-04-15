@@ -5,16 +5,16 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "pandas>=2.0.0",
-        "numpy>=2.2.2",
-        "matplotlib>=3.10.0",
-        "statsmodels>=0.14.4",
-        "seaborn>=0.13.2",
-        "scipy>=1.15.1",
-        "pyreadr>=0.4.5",
-        "pysam>=0.22.0",
-        "pyhpo>=3.3.0",
-        "scikit-learn>=1.6.0"
+        "pandas",
+        "numpy",
+        "matplotlib",
+        "statsmodels",
+        "seaborn",
+        "scipy",
+        "pyreadr",
+        "pysam",
+        "pyhpo",
+        "scikit-learn"
     ],
     entry_points={
         "console_scripts": [
