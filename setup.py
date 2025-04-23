@@ -19,6 +19,7 @@ setup(
     entry_points={
         "console_scripts": [
             "isoranker_pb_run_analysis=IsoRanker.isoranker_pb_run_analysis:main",
+            "isoranker_pb_run_analysis_full=IsoRanker.isoranker_pb_run_analysis_full:main",
         ],
     },
     author="Hank Cheng",
