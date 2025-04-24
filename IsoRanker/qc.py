@@ -14,7 +14,7 @@ from IsoRanker import (
 )
 
 
-def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col = "associated_gene"):
+def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col="associated_gene"):
     """
     Performs principal component analysis (PCA) on transcript expression data and generates a PCA plot.
 
@@ -39,74 +39,72 @@ def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col = "associat
     - TPM values are grouped by 'Sample' and `grouping_col`, then standardized using `StandardScaler()`.
     - PCA is performed with two components.
     - The PCA plot is colored by treatment condition (Cyclo in red, Noncyclo in blue).
-    - The plot is saved as a PDF at the specified `output_pdf` path.
-    - Hg38 SRSF6 example usage: process_pileup(df=input_df, reference_fasta="/gscratch/stergachislab/assemblies/simple-names/hg38.fa", chromosome="chr20", position=43459200, output_file="SRSF6.tsv.gz")
+    - The plot includes variance explained on axis labels and is saved as a PDF.
     """
 
     df_filtered = filter_based_on_counts(df, count_threshold=10, group_col=grouping_col)
 
-    # Group by Sample and associated_gene and sum Cyclo_TPM and Noncyclo_TPM
+    # Group by Sample and grouping_col and sum TPM values
     grouped_df = df_filtered.groupby(["Sample", grouping_col])[["Cyclo_TPM", "Noncyclo_TPM"]].sum().reset_index()
-    
-    # Create two separate DataFrames for Cyclo and Noncyclo
+
+    # Create DataFrames for Cyclo and Noncyclo
     cyclo_df = grouped_df[["Sample", grouping_col, "Cyclo_TPM"]].copy()
     noncyclo_df = grouped_df[["Sample", grouping_col, "Noncyclo_TPM"]].copy()
-    
+
     # Rename columns
     cyclo_df.columns = ["Sample", grouping_col, "TPM"]
     noncyclo_df.columns = ["Sample", grouping_col, "TPM"]
-    
-    # Append _Cyclo and _Noncyclo to Sample names
+
+    # Label samples
     cyclo_df["Sample"] = cyclo_df["Sample"] + "_Cyclo"
     noncyclo_df["Sample"] = noncyclo_df["Sample"] + "_Noncyclo"
-    
-    # Concatenate the two DataFrames
+
+    # Concatenate
     final_df = pd.concat([cyclo_df, noncyclo_df], ignore_index=True)
-    
-    # Pivot table to have Samples as rows and associated_gene as columns
+
+    # Pivot: rows = Sample, columns = genes/isoforms, values = TPM
     pivot_df = final_df.pivot(index="Sample", columns=grouping_col, values="TPM").fillna(0)
 
-    # Remove samples where all TPM values are 0
+    # Remove samples with all-zero TPMs
     pivot_df = pivot_df.loc[pivot_df.any(axis=1)]
 
-    # Standardize the data to match R's prcomp(center=TRUE, scale=TRUE)
+    # Standardize
     scaler = StandardScaler()
     scaled_data = scaler.fit_transform(pivot_df)
-    
-    # Perform PCA
+
+    # PCA
     pca = PCA(n_components=2)
     principal_components = pca.fit_transform(scaled_data)
-    
-    # Create DataFrame with PC1 and PC2
+
+    # Create PCA result DataFrame
     pca_df = pd.DataFrame(principal_components, columns=["PC1", "PC2"], index=pivot_df.index).reset_index()
-    
-    # Add Cyclo/Noncyclo category
     pca_df["Condition"] = pca_df["Sample"].apply(lambda x: "Cyclo" if "_Cyclo" in x else "Noncyclo")
-    
-    # Define color mapping
+
+    # Plotting
     color_mapping = {"Cyclo": "red", "Noncyclo": "blue"}
-    
-    # Plot PCA results
     plt.figure(figsize=(8, 6))
     ax = sns.scatterplot(
         data=pca_df, x="PC1", y="PC2", hue="Condition", style="Condition", s=100,
         palette=color_mapping, markers={"Cyclo": "o", "Noncyclo": "o"}
     )
-    
-    # Add labels to each point
-    for i, row in pca_df.iterrows():
+
+    # Add sample labels
+    for _, row in pca_df.iterrows():
         ax.text(row["PC1"], row["PC2"], row["Sample"], fontsize=5, ha='right', va='bottom')
-    
-    plt.xlabel("PC1")
-    plt.ylabel("PC2")
+
+    # Axis labels with explained variance
+    explained_var = pca.explained_variance_ratio_ * 100
+    plt.xlabel(f"PC1 ({explained_var[0]:.2f}%)")
+    plt.ylabel(f"PC2 ({explained_var[1]:.2f}%)")
     plt.title("PCA of Samples")
     plt.legend()
-    
-    # Save the plot to a PDF
+
+    # Save
     plt.savefig(output_pdf)
     plt.close()
-    
+
     return pca_df
+
 
 
 def analyze_isoforms(df, output_file, grouping_column):
