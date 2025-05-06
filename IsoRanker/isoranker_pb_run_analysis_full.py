@@ -545,6 +545,43 @@ def main():
 
 
     ###################################
+    # SRSF6 deltas
+    ###################################
+
+    # Compute deltas between every pair of rows (0-1, 2-3, etc.)
+    deltas = []
+    for i in range(0, len(df_sorted), 2):
+        source = df_sorted.iloc[i]["Source"] + "_" + df_sorted.iloc[i + 1]["Source"]
+        delta = (df_sorted.iloc[i]["Exonic_Proportion"] - df_sorted.iloc[i + 1]["Exonic_Proportion"])/df_sorted.iloc[i]["Exonic_Proportion"] 
+        deltas.append({"Source": source, "Exonic_Delta": delta})
+
+    # Create new DataFrame
+    delta_df = pd.DataFrame(deltas)
+
+    # Optional: Set a style
+    sns.set(style="whitegrid")
+
+    # Create the boxplot
+    plt.figure(figsize=(8, 5))
+    ax = sns.boxplot(data=delta_df, y="Exonic_Delta", color="lightgray", width=0.3)
+
+    # Overlay the swarmplot
+    sns.swarmplot(data=delta_df, y="Exonic_Delta", color="black", size=8)
+
+    # Set y-axis limits
+    ax.set_ylim(-1, 1.1)
+
+    # Optional: Add x-axis label
+    ax.set_xlabel("")
+    ax.set_ylabel("Normalized Exonic Delta")
+    ax.set_title("Normalized Exonic Delta per Patient")
+    plt.tight_layout()
+
+    # Save to PDF
+    plt.savefig("SRSF6_exonic_proportion_normalized_delta.pdf", format="pdf")
+
+
+    ###################################
     # Organize output files
     ###################################
 
@@ -575,7 +612,8 @@ def main():
         "SRSF6.tsv.gz",
         "SRSF6_exonic_proportion.pdf",
         "isoform_diversity.pdf",
-        "gene_diversity.pdf"
+        "gene_diversity.pdf",
+        "SRSF6_exonic_proportion_normalized_delta.pdf"
     }
 
     lookup_table_files = {
