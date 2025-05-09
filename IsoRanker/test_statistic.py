@@ -363,7 +363,7 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     # Output the z_scored_data as an intermediate output. This includes the test stat and z-scores for all genes/isoforms, even unranked ones.
     test_name = test_statistic_func.__name__
     level = "gene" if gene_level else "isoform"
-    output_file = os.path.join(output_dir, f"{test_name}_{level}_full_test_stat_and_z_scored_data.tsv.gz")
+    output_file = f"{test_name}_{level}_full_test_stat_and_z_scored_data.tsv.gz"
     z_scored_data.to_csv(output_file, index=False, compression="gzip", sep="\t")
 
     #Filter before ranking
