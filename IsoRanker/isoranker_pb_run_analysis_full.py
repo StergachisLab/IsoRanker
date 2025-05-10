@@ -630,17 +630,17 @@ def main():
     }
 
     separated_results_files = {
-        "Cyclo_Allelic_Imbalance_gene_top_ranked_data.tsv.gz",
-        "Cyclo_GOE_gene_top_ranked_data.tsv.gz",
-        "Cyclo_GOE_isoform_top_ranked_data.tsv.gz",
-        "NMD_gene_top_ranked_data.tsv.gz",
-        "NMD_isoform_top_ranked_data.tsv.gz",
-        "NMD_rare_steady_state_transcript_gene_top_ranked_data.tsv.gz",
-        "Noncyclo_GOE_gene_top_ranked_data.tsv.gz",
-        "Noncyclo_GOE_isoform_top_ranked_data.tsv.gz",
-        "Noncyclo_LOE_gene_top_ranked_data.tsv.gz",
-        "Noncyclo_LOE_isoform_top_ranked_data.tsv.gz",
-        "Nonyclo_Allelic_Imbalance_gene_top_ranked_data.tsv.gz"
+        "Cyclo_Allelic_Imbalance_gene_full_ranked_data.tsv.gz",
+        "Cyclo_GOE_gene_full_ranked_data.tsv.gz",
+        "Cyclo_GOE_isoform_full_ranked_data.tsv.gz",
+        "NMD_gene_full_ranked_data.tsv.gz",
+        "NMD_isoform_full_ranked_data.tsv.gz",
+        "NMD_rare_steady_state_transcript_gene_full_ranked_data.tsv.gz",
+        "Noncyclo_GOE_gene_full_ranked_data.tsv.gz",
+        "Noncyclo_GOE_isoform_full_ranked_data.tsv.gz",
+        "Noncyclo_LOE_gene_full_ranked_data.tsv.gz",
+        "Noncyclo_LOE_isoform_full_ranked_data.tsv.gz",
+        "Nonyclo_Allelic_Imbalance_gene_full_ranked_data.tsv.gz"
     }
 
     browser_files = lookup_table_files | combined_results_files | separated_results_files
