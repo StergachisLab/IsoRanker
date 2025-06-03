@@ -129,7 +129,7 @@ def main():
         ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
         ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
         ("NMD_rare_steady_state_transcript", NMD_rare_steady_state_transcript),
-        ("Nonyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance),
+        ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance),
         ("Cyclo_Allelic_Imbalance", Cyclo_Allelic_Imbalance)
     ]
 
@@ -640,7 +640,7 @@ def main():
         "Noncyclo_GOE_isoform_full_ranked_data.tsv.gz",
         "Noncyclo_LOE_gene_full_ranked_data.tsv.gz",
         "Noncyclo_LOE_isoform_full_ranked_data.tsv.gz",
-        "Nonyclo_Allelic_Imbalance_gene_full_ranked_data.tsv.gz"
+        "Noncyclo_Allelic_Imbalance_gene_full_ranked_data.tsv.gz"
     }
 
     browser_files = lookup_table_files | combined_results_files | separated_results_files
