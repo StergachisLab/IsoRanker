@@ -23,13 +23,14 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     - None: Writes updated read stats and sample info files to the specified output directory.
     """
     
+
     os.makedirs(output_dir, exist_ok=True)
 
     # Load sample_info_with_haplotype_location.tsv
     sample_info = pd.read_csv(sample_info_with_haplotype_location, sep="\t")
 
-    # Load read_stats.txt
-    read_stats = pd.read_csv(read_stats_path, sep="\t", dtype={"id": str})  # Ensure id column is string
+    # Load read_stats.txt. Allow the file to be zipped or not
+    read_stats = pd.read_csv(read_stats_path, sep="\t", dtype={0: str}, compression='infer') # Ensure read id column (first column) is string
 
     # Processing sample_info to extract haplotype assignment files
     all_haplotypes = []  # Store haplotype assignments in a list for efficient merging
