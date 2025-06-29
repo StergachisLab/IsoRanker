@@ -32,6 +32,9 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     # Load read_stats.txt. Allow the file to be zipped or not
     read_stats = pd.read_csv(read_stats_path, sep="\t", dtype={0: str}, compression='infer') # Ensure read id column (first column) is string
 
+    # Ensure the first column is named "id"
+    read_stats.rename(columns={read_stats.columns[0]: 'id'}, inplace=True)
+
     # Processing sample_info to extract haplotype assignment files
     all_haplotypes = []  # Store haplotype assignments in a list for efficient merging
 
