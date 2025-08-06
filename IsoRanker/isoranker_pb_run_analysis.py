@@ -96,7 +96,7 @@ def main():
     sample_info = pd.read_csv(sample_info_path, compression = "gzip", sep="\t")
 
     ################################################
-    # Create the expression matrix
+    # Create the isofor-level expression matrix
     ################################################
     print("Creating expression matrix", flush=True)
     expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.tsv.gz"))
@@ -117,6 +117,26 @@ def main():
     ).drop(columns=["isoform"])
 
     long_format_annotated.to_csv(os.path.join(output_dir, "long_format_annotated.tsv.gz"), index=False, compression = "gzip", sep="\t")
+
+    ################################################
+    # Create the gene-level expression matrix
+    ################################################
+    # This matrix it not used in any of the analysis, but might be a helpful intermediate file to output. 
+
+    print("Creating gene expression matrix", flush=True)
+
+    # Load the expression matrix (rows: isoforms, columns: samples)
+    #expr_df = pd.read_csv("/mmfs1/gscratch/stergachislab/yhhc/projects/IsoRanker_testing/Command_line/4.9.25/Output/intermediate/expression_matrix.tsv.gz", sep="\t", index_col=0, compression="gzip")
+    
+    # Merge mapping with expression data
+    gene_expr_df = classification_subset.merge(expression_matrix, left_on="isoform", right_index=True)
+
+    # Group by gene and sum expression values across isoforms
+    gene_expr_df = gene_expr_df.drop(columns=["isoform"]).groupby("associated_gene").sum()
+
+    # Save to output file
+    gene_expr_df.to_csv("gene_expression_matrix.tsv", sep="\t")
+
 
     ################################################
     # Gene level hypothesis testing
