@@ -135,7 +135,7 @@ def main():
     gene_expr_df = gene_expr_df.drop(columns=["isoform"]).groupby("associated_gene").sum()
 
     # Save to output file
-    gene_expr_df.to_csv("gene_expression_matrix.tsv", sep="\t")
+    gene_expr_df.to_csv("gene_expression_matrix.tsv.gz", sep="\t", compression="gzip")
 
 
     ################################################
