@@ -242,15 +242,18 @@ def main():
     ################################################
     # Combine output files
     ################################################
+
+    # Combine the ranked files
+
     print("Combining output files", flush=True)
 
     # Isoform
-    keyword = "isoform" 
+    keyword = "_isoform_" 
     output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
     merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
     # Gene
-    keyword = "gene"
+    keyword = "_gene_"
     output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
     merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
