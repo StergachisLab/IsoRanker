@@ -96,7 +96,7 @@ def main():
     sample_info = pd.read_csv(sample_info_path, compression = "gzip", sep="\t")
 
     ################################################
-    # Create the isofor-level expression matrix
+    # Create the isoform-level expression matrix
     ################################################
     print("Creating expression matrix", flush=True)
     expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.tsv.gz"))
@@ -249,12 +249,12 @@ def main():
 
     # Isoform
     keyword = "_isoform_" 
-    output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
+    output_tsv = os.path.join(output_dir, f"merged_ranked_isoform.tsv.gz")
     merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
     # Gene
     keyword = "_gene_"
-    output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
+    output_tsv = os.path.join(output_dir, f"merged_ranked_gene.tsv.gz")
     merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
 
