@@ -217,7 +217,7 @@ def main():
             gene_level=False, 
             bin_proportion=0.01, 
             filter_before_ranking=True, 
-            filter_count_threshold=10)
+            filter_count_threshold=5)
 
         filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
 
