@@ -96,7 +96,7 @@ def main():
     sample_info = pd.read_csv(sample_info_path, compression = "gzip", sep="\t")
 
     ################################################
-    # Create the expression matrix
+    # Create the isoform-level expression matrix
     ################################################
     print("Creating expression matrix", flush=True)
     expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.tsv.gz"))
@@ -117,6 +117,27 @@ def main():
     ).drop(columns=["isoform"])
 
     long_format_annotated.to_csv(os.path.join(output_dir, "long_format_annotated.tsv.gz"), index=False, compression = "gzip", sep="\t")
+
+    ################################################
+    # Create the gene-level expression matrix
+    ################################################
+    # This matrix it not used in any of the analysis, but might be a helpful intermediate file to output. 
+
+    print("Creating gene expression matrix", flush=True)
+
+    # Load the expression matrix (rows: isoforms, columns: samples)
+    #expr_df = pd.read_csv("/mmfs1/gscratch/stergachislab/yhhc/projects/IsoRanker_testing/Command_line/4.9.25/Output/intermediate/expression_matrix.tsv.gz", sep="\t", index_col=0, compression="gzip")
+    
+    # Merge mapping with expression data
+    gene_expr_df = classification_subset.merge(expression_matrix, left_on="isoform", right_index=True)
+
+    # Group by gene and sum expression values across isoforms
+    gene_expr_df = gene_expr_df.drop(columns=["isoform"]).groupby("associated_gene").sum()
+
+    # Save to output file
+    gene_expr_df.to_csv("gene_expression_matrix.tsv.gz", sep="\t", compression="gzip")
+
+
 
     ################################################
     # Gene level hypothesis testing
@@ -154,24 +175,31 @@ def main():
         # Append tuple (test_name, ranked_data) to the list
         full_ranked_gene_data.append((test_name, ranked_data))
 
-        filtered_ranked_data = ranked_data
-
-        filtered_ranked_data = split_fusion_genes(filtered_ranked_data)
 
         # Add OMIM data to genes
-        filtered_ranked_data = filtered_ranked_data.merge(
+        ranked_data = ranked_data.merge(
             genemap[['Approved Gene Symbol', 'Phenotypes']],  # Select relevant columns from genemap
             how='left',  # Perform a left join to keep all rows from filtered_ranked_data
             left_on='associated_gene',  # Column in filtered_ranked_data to join on
             right_on='Approved Gene Symbol'  # Column in genemap to join on
         )
         # Drop the 'Approved Gene Name' column if it is no longer needed
-        filtered_ranked_data = filtered_ranked_data.drop(columns=['Approved Gene Symbol'])
+        ranked_data = ranked_data.drop(columns=['Approved Gene Symbol'])
+
+        ranked_data = split_fusion_genes(ranked_data)
+
+        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
 
         # Save the results to a tsv file
-        output_file = os.path.join(output_dir, f"{test_name}_gene_full_ranked_data.tsv.gz")
+        output_file = os.path.join(output_dir, f"{test_name}_gene_top_ranked_data.tsv.gz")
         filtered_ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
         print(f"Results saved to {output_file}", flush=True)
+
+        # Save the full results to a tsv file. 
+        output_file = os.path.join(output_dir, f"{test_name}_gene_full_ranked_data.tsv.gz")
+        ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
+        print(f"Results saved to {output_file}", flush=True)
+
 
     ################################################
     # Isoform level hypothesis testing
@@ -197,41 +225,50 @@ def main():
             gene_level=False, 
             bin_proportion=0.01, 
             filter_before_ranking=True, 
-            filter_count_threshold=10)
-
-        filtered_ranked_data = ranked_data
-
-        filtered_ranked_data = split_fusion_genes(filtered_ranked_data)
+            filter_count_threshold=5)
 
         # Add OMIM data to genes
-        filtered_ranked_data = filtered_ranked_data.merge(
+        ranked_data = ranked_data.merge(
             genemap[['Approved Gene Symbol', 'Phenotypes']],  # Select relevant columns from genemap
             how='left',  # Perform a left join to keep all rows from filtered_ranked_data
             left_on='associated_gene',  # Column in filtered_ranked_data to join on
             right_on='Approved Gene Symbol'  # Column in genemap to join on
         )
         # Drop the 'Approved Gene Name' column if it is no longer needed
-        filtered_ranked_data = filtered_ranked_data.drop(columns=['Approved Gene Symbol'])
+        ranked_data = ranked_data.drop(columns=['Approved Gene Symbol'])
+
+        ranked_data = split_fusion_genes(ranked_data)
+
+        filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
 
         # Save the results to a tsv file
-        output_file = os.path.join(output_dir, f"{test_name}_isoform_full_ranked_data.tsv.gz")
+        output_file = os.path.join(output_dir, f"{test_name}_isoform_top_ranked_data.tsv.gz")
         filtered_ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
         print(f"Results saved to {output_file}", flush=True)
+
+        # Save the full results to a tsv file. 
+        output_file = os.path.join(output_dir, f"{test_name}_isoform_full_ranked_data.tsv.gz")
+        ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
+        print(f"Results saved to {output_file}", flush=True)
+
 
 
     ################################################
     # Combine output files
     ################################################
+
+    # Combine the ranked files
+
     print("Combining output files", flush=True)
 
     # Isoform
-    keyword = "isoform" 
-    output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
+    keyword = "_isoform_top_" 
+    output_tsv = os.path.join(output_dir, f"merged_ranked_isoform.tsv.gz")
     merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
     # Gene
-    keyword = "gene"
-    output_tsv = os.path.join(output_dir, f"merged_ranked_{keyword}.tsv.gz")
+    keyword = "_gene_top_"
+    output_tsv = os.path.join(output_dir, f"merged_ranked_gene.tsv.gz")
     merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
 
@@ -543,7 +580,6 @@ def main():
     # Save to PDF
     plt.savefig("SRSF6_exonic_proportion.pdf", format="pdf")
 
-
     ###################################
     # SRSF6 deltas
     ###################################
@@ -630,17 +666,17 @@ def main():
     }
 
     separated_results_files = {
-        "Cyclo_Allelic_Imbalance_gene_full_ranked_data.tsv.gz",
-        "Cyclo_GOE_gene_full_ranked_data.tsv.gz",
-        "Cyclo_GOE_isoform_full_ranked_data.tsv.gz",
-        "NMD_gene_full_ranked_data.tsv.gz",
-        "NMD_isoform_full_ranked_data.tsv.gz",
-        "NMD_rare_steady_state_transcript_gene_full_ranked_data.tsv.gz",
-        "Noncyclo_GOE_gene_full_ranked_data.tsv.gz",
-        "Noncyclo_GOE_isoform_full_ranked_data.tsv.gz",
-        "Noncyclo_LOE_gene_full_ranked_data.tsv.gz",
-        "Noncyclo_LOE_isoform_full_ranked_data.tsv.gz",
-        "Noncyclo_Allelic_Imbalance_gene_full_ranked_data.tsv.gz"
+        "Cyclo_Allelic_Imbalance_gene_top_ranked_data.tsv.gz",
+        "Cyclo_GOE_gene_top_ranked_data.tsv.gz",
+        "Cyclo_GOE_isoform_top_ranked_data.tsv.gz",
+        "NMD_gene_top_ranked_data.tsv.gz",
+        "NMD_isoform_top_ranked_data.tsv.gz",
+        "NMD_rare_steady_state_transcript_gene_top_ranked_data.tsv.gz",
+        "Noncyclo_GOE_gene_top_ranked_data.tsv.gz",
+        "Noncyclo_GOE_isoform_top_ranked_data.tsv.gz",
+        "Noncyclo_LOE_gene_top_ranked_data.tsv.gz",
+        "Noncyclo_LOE_isoform_top_ranked_data.tsv.gz",
+        "Noncyclo_Allelic_Imbalance_gene_top_ranked_data.tsv.gz"
     }
 
     browser_files = lookup_table_files | combined_results_files | separated_results_files
