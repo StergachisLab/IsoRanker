@@ -225,7 +225,7 @@ def main():
             gene_level=False, 
             bin_proportion=0.01, 
             filter_before_ranking=True, 
-            filter_count_threshold=5)
+            filter_count_threshold=10)
 
         # Add OMIM data to genes
         ranked_data = ranked_data.merge(
