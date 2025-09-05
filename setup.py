@@ -21,6 +21,7 @@ setup(
             "isoranker_pb_run_analysis=IsoRanker.isoranker_pb_run_analysis:main",
             "isoranker_pb_run_analysis_full=IsoRanker.isoranker_pb_run_analysis_full:main",
             "isoranker_isoquant_run_analysis=IsoRanker.isoranker_isoquant_run_analysis:main",
+	    "isoranker_isoquant_run_analysis=IsoRanker.isoranker_pb_run_analysis_minor_iso_GOE_full.py:main",
         ],
     },
     author="Hank Cheng",

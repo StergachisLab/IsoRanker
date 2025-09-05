@@ -13,7 +13,9 @@ from .test_statistic import (
     NMD_rare_steady_state_transcript,
     Noncyclo_Allelic_Imbalance,
     Cyclo_Allelic_Imbalance,
-    process_hypothesis_test
+    process_hypothesis_test,
+    Noncyclo_Expression_Outlier_GOE_minor_isoforms,
+    Cyclo_Expression_Outlier_GOE_minor_isoforms
 )
 from .ranking import calculate_ranks_for_sample
 from .expression_matrix import (

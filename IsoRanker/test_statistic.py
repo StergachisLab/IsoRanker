@@ -177,6 +177,42 @@ def Cyclo_Allelic_Imbalance(group):
     group['test_statistic'] = results
     return group
 
+def Cyclo_Expression_Outlier_GOE_minor_isoforms(group):
+    """Calculate test statistic for Cyclo Expression Outlier - Gain of Expression (GOE) only using minor isoforms for the gene."""
+    results = []
+    for _, row in group.iterrows():
+        # Exclude the current sample and calculate metrics from other samples
+        other_samples = group.drop(row.name)
+        max_cyclo_TPM = other_samples['Minor_isoform_cyclo_reads'].max()
+        median_cyclo_TPM = other_samples['Minor_isoform_cyclo_reads'].median()
+        
+        # Calculate the test statistic
+        ratio = (row['Minor_isoform_cyclo_reads'] + 1) / (max_cyclo_TPM + 1)
+        test_statistic = np.log2(ratio) * np.log2(median_cyclo_TPM + 2)
+        results.append(test_statistic)
+    
+    # Assign the calculated test statistics back to the group
+    group['test_statistic'] = results
+    return group
+
+def Noncyclo_Expression_Outlier_GOE_minor_isoforms(group):
+    """Calculate test statistic for Noncyclo Expression Outlier - Gain of Expression (GOE) only using minor isoforms for the gene."""
+    results = []
+    for _, row in group.iterrows():
+        # Exclude the current sample and calculate metrics from other samples
+        other_samples = group.drop(row.name)
+        max_noncyclo_TPM = other_samples['Minor_isoform_noncyclo_reads'].max()
+        median_noncyclo_TPM = other_samples['Minor_isoform_noncyclo_reads'].median()
+        
+        # Calculate the test statistic
+        ratio = (row['Minor_isoform_noncyclo_reads'] + 1) / (max_noncyclo_TPM + 1)
+        test_statistic = np.log2(ratio) * np.log2(median_noncyclo_TPM + 2)
+        results.append(test_statistic)
+    
+    # Assign the calculated test statistics back to the group
+    group['test_statistic'] = results
+    return group
+
 
 def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_group_col=None, gene_level=True, bin_proportion=0.01, filter_before_ranking=True, filter_count_threshold=10):
     """
@@ -261,6 +297,52 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         gene_level_data["Noncyclo_TPM_Mean"] = gene_level_data.groupby(gene_group_col)["Noncyclo_TPM"].transform("mean")
 
 
+
+        if (test_statistic_func == Cyclo_Expression_Outlier_GOE_minor_isoforms) | (test_statistic_func == Noncyclo_Expression_Outlier_GOE_minor_isoforms):
+            # Create minor isoform counts for each gene
+            
+            # First, determine which isoforms are minor across all samples
+            isoform_totals = (
+                filtered_data.groupby(["Isoform", gene_group_col])["noncyclo_count"]
+                .sum()
+                .reset_index(name="isoform_noncyclo_total")
+            )
+            isoform_totals["gene_noncyclo_total"] = (
+                isoform_totals.groupby(gene_group_col)["isoform_noncyclo_total"].transform("sum")
+            )
+            isoform_totals["isoform_fraction"] = (
+                isoform_totals["isoform_noncyclo_total"] / isoform_totals["gene_noncyclo_total"]
+            )
+            isoform_totals["minor_isoform"] = isoform_totals["isoform_fraction"] < 0.01
+
+            # Merge this minor isoform status back to the sample-level data
+            filtered_with_minor = filtered_data.merge(
+                isoform_totals[["Isoform", gene_group_col, "minor_isoform"]],
+                on=["Isoform", gene_group_col],
+                how="left"
+            )
+
+            # Now aggregate: total reads from minor isoforms for each (Sample, Gene)
+            minor_reads = (
+                filtered_with_minor.query("minor_isoform")
+                .groupby([gene_group_col, "Sample"])
+                .agg(
+                    Minor_isoform_cyclo_reads=("cyclo_count", "sum"),
+                    Minor_isoform_noncyclo_reads=("noncyclo_count", "sum")
+                )
+                .reset_index()
+            )
+
+            # Merge into gene-level table
+            gene_level_data = gene_level_data.merge(minor_reads, on=[gene_group_col, "Sample"], how="left")
+
+            # Fill NaNs with 0 in case no minor isoforms exist for a gene in a sample
+            gene_level_data[["Minor_isoform_cyclo_reads", "Minor_isoform_noncyclo_reads"]] = (
+                gene_level_data[["Minor_isoform_cyclo_reads", "Minor_isoform_noncyclo_reads"]].fillna(0)
+            )
+
+
+
         if test_statistic_func == NMD_rare_steady_state_transcript:
             # Create bins and calculate aggregated values
             filtered_data["bin"] = filtered_data["isoform_noncyclo_proportion"].apply(
@@ -301,6 +383,7 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             ) / (
                 gene_level_data["proportion_in_Bin1_cyclo"] + gene_level_data["proportion_in_Bin1_noncyclo"]
             )
+
 
         processed_data = gene_level_data
 
