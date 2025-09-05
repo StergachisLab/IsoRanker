@@ -325,15 +325,18 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
                 how="left"
             )
 
-            # Now aggregate: total reads from minor isoforms for each (Sample, Gene)
+            # After merge when some rows don’t get a minor_isoform value
+            minor_mask = filtered_with_minor["minor_isoform"].fillna(False).astype(bool)
+
+
+            # Aggregate using the mask. Total reads from minor isoforms for each (Sample, Gene)
             minor_reads = (
-                filtered_with_minor.query("minor_isoform")
-                .groupby([gene_group_col, "Sample"])
+                filtered_with_minor.loc[minor_mask]
+                .groupby([gene_group_col, "Sample"], as_index=False)
                 .agg(
                     Minor_isoform_cyclo_reads=("cyclo_count", "sum"),
-                    Minor_isoform_noncyclo_reads=("noncyclo_count", "sum")
+                    Minor_isoform_noncyclo_reads=("noncyclo_count", "sum"),
                 )
-                .reset_index()
             )
 
             # Merge into gene-level table
