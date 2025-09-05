@@ -434,6 +434,19 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             (processed_data["H1_cyclo_count"] - processed_data["H2_cyclo_count"]) / 
             (processed_data["H1_cyclo_count"] + processed_data["H2_cyclo_count"])
         )
+    elif test_statistic_func in [Cyclo_Expression_Outlier_GOE_minor_isoforms]:
+        processed_data["Avg_Minor_isoform_cyclo_reads"] = processed_data.groupby(group_col)["Minor_isoform_cyclo_reads"].transform("mean")
+        processed_data["SD_Minor_isoform_cyclo_reads"] = processed_data.groupby(group_col)["Minor_isoform_cyclo_reads"].transform("std")
+        processed_data["Minor_isoform_cyclo_reads_Z_Score"] = (
+            processed_data["Minor_isoform_cyclo_reads"] - processed_data["Avg_Minor_isoform_cyclo_reads"]
+        ) / processed_data["SD_Minor_isoform_cyclo_reads"]
+    elif test_statistic_func in [Noncyclo_Expression_Outlier_GOE_minor_isoforms]:
+        processed_data["Avg_Minor_isoform_noncyclo_reads"] = processed_data.groupby(group_col)["Minor_isoform_noncyclo_reads"].transform("mean")
+        processed_data["SD_Minor_isoform_noncyclo_reads"] = processed_data.groupby(group_col)["Minor_isoform_noncyclo_reads"].transform("std")
+        processed_data["Minor_isoform_noncyclo_reads_Z_Score"] = (
+            processed_data["Minor_isoform_noncyclo_reads"] - processed_data["Avg_Minor_isoform_noncyclo_reads"]
+        ) / processed_data["SD_Minor_isoform_noncyclo_reads"]
+
 
     if gene_level == True:
         processed_data = filter_based_on_counts(processed_data, count_threshold=filter_count_threshold, group_col=gene_group_col)
@@ -474,6 +487,12 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             z_scored_data = z_scored_data[z_scored_data["Cyclo_TPM_Z_Score"] < 0]
         elif test_statistic_func == Cyclo_Expression_Outlier_GOE:
             z_scored_data = z_scored_data[z_scored_data["Cyclo_TPM_Z_Score"] > 0]
+        elif test_statistic_func == Cyclo_Expression_Outlier_GOE_minor_isoforms:
+            z_scored_data = z_scored_data[z_scored_data["Minor_isoform_cyclo_reads_Z_Score"] > 0]
+        elif test_statistic_func == Noncyclo_Expression_Outlier_GOE_minor_isoforms:
+            z_scored_data = z_scored_data[z_scored_data["Minor_isoform_noncyclo_reads_Z_Score"] > 0]
+            
+
 
     # Calculate ranks
     ranked_data = calculate_ranks_for_sample(z_scored_data, group_col=gene_group_col if gene_level else group_col)
