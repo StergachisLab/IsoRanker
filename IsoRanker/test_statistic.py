@@ -313,7 +313,10 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             isoform_totals["isoform_fraction"] = (
                 isoform_totals["isoform_noncyclo_total"] / isoform_totals["gene_noncyclo_total"]
             )
-            isoform_totals["minor_isoform"] = isoform_totals["isoform_fraction"] < 0.01
+            
+            isoform_totals["minor_isoform"] = (
+                isoform_totals["isoform_fraction"] < 0.01
+            ).fillna(False)
 
             # Merge this minor isoform status back to the sample-level data
             filtered_with_minor = filtered_data.merge(
