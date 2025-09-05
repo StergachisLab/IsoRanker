@@ -147,15 +147,15 @@ def main():
 
     # Define hypothesis tests
     test_stat_funcs = [
+        ("Cyclo_GOE_minor_isoforms",Cyclo_Expression_Outlier_GOE_minor_isoforms),
+        ("Noncyclo_GOE_minor_isoforms",Noncyclo_Expression_Outlier_GOE_minor_isoforms),
         ("NMD", NMD_test_statistic),
         ("Noncyclo_LOE", Noncyclo_Expression_Outlier_LOE),
         ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
         ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
         ("NMD_rare_steady_state_transcript", NMD_rare_steady_state_transcript),
         ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance),
-        ("Cyclo_Allelic_Imbalance", Cyclo_Allelic_Imbalance),
-        ("Cyclo_GOE_minor_isoforms",Cyclo_Expression_Outlier_GOE_minor_isoforms),
-        ("Noncyclo_GOE_minor_isoforms",Noncyclo_Expression_Outlier_GOE_minor_isoforms)
+        ("Cyclo_Allelic_Imbalance", Cyclo_Allelic_Imbalance)
     ]
 
     # Store full results to generate lookup table
@@ -164,6 +164,8 @@ def main():
     #Gene level
     for test_name, test_func in test_stat_funcs:
         print(f"Processing test statistic: {test_name}", flush=True)
+
+        # output_dir, f"{test_name}_gene_full_ranked_data.tsv.gz"
 
         # Apply the process_hypothesis_test function
         ranked_data = process_hypothesis_test(
