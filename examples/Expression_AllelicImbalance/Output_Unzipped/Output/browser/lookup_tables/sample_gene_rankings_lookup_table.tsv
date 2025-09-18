@@ -1,4 +1,4 @@
-Sample	associated_gene	Cyclo_TPM	Noncyclo_TPM	Noncyclo_LOE_rank_top_99_5_percentile	Noncyclo_GOE_rank_top_99_5_percentile	Nonyclo_Allelic_Imbalance_rank_top_99_5_percentile
+Sample	associated_gene	Cyclo_TPM	Noncyclo_TPM	Noncyclo_LOE_rank_top_99_5_percentile	Noncyclo_GOE_rank_top_99_5_percentile	Noncyclo_Allelic_Imbalance_rank_top_99_5_percentile
 Patient1	DND1_HARS1	0.0	0.0			
 Patient1	HARS1	0.0	374490.39021549217			
 Patient1	SRSF6	0.0	55329.062317996504			
