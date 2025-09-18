@@ -196,7 +196,7 @@ def main():
         print(f"Results saved to {output_file}", flush=True)
 
         # Save the full results to a tsv file. 
-        output_file = os.path.join(output_dir, f"{test_name}_gene_full_ranked_data.tsv.gz")
+        output_file = os.path.join(output_dir, f"{test_name}_gen_full_ranked_data.tsv.gz")
         ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
         print(f"Results saved to {output_file}", flush=True)
 
@@ -247,7 +247,7 @@ def main():
         print(f"Results saved to {output_file}", flush=True)
 
         # Save the full results to a tsv file. 
-        output_file = os.path.join(output_dir, f"{test_name}_isoform_full_ranked_data.tsv.gz")
+        output_file = os.path.join(output_dir, f"{test_name}_iso_full_ranked_data.tsv.gz")
         ranked_data.to_csv(output_file, index=False, compression = "gzip", sep="\t")
         print(f"Results saved to {output_file}", flush=True)
 
