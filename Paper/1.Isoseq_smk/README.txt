@@ -1,0 +1,1 @@
+Please visit https://github.com/StergachisLab/IsoSeq_smk to see how IsoRanker input files were generated from FLNC BAMs and how QC was performed.
