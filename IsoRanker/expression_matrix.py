@@ -167,8 +167,17 @@ def create_long_format(expression_matrix, sample_info=None):
 
     # Step 8: Drop unnecessary columns.
     # If the haplotype column are all empty or NaN, or "none", or "H0", then we are not evalauting for haplotype separated information so these columns can be dropped.
-    if sample_info['haplotype'].replace(['', 'none', "H0"], float('NaN'), inplace=False).isna().all():
-        aggregated_data = aggregated_data.drop(columns=["H0_cyclo_count", "H1_cyclo_count", "H2_cyclo_count", "H0_noncyclo_count", "H1_noncyclo_count", "H2_noncyclo_count"])
+
+    hap = sample_info['haplotype']
+    no_haplotype_info = (hap.isna() | hap.isin(['', 'none', 'H0'])).all()
+
+    if no_haplotype_info:
+        aggregated_data = aggregated_data.drop(
+            columns=[
+                "H0_cyclo_count", "H1_cyclo_count", "H2_cyclo_count",
+                "H0_noncyclo_count", "H1_noncyclo_count", "H2_noncyclo_count",
+            ]
+        )
 
     # Step 9: Return the aggregated DataFrame
     return aggregated_data
