@@ -146,7 +146,8 @@ def filter_based_on_counts(df, count_threshold=10, group_col='Isoform'):
     """
     # Determine isoforms/groups to keep based on the threshold
     isoforms_to_keep = df.groupby(group_col).apply(
-        lambda group: any(group['cyclo_count'] >= count_threshold) or any(group['noncyclo_count'] >= count_threshold)
+        lambda group: any(group['cyclo_count'] >= count_threshold) or any(group['noncyclo_count'] >= count_threshold),
+        include_groups=True
     )
     isoforms_to_keep = isoforms_to_keep[isoforms_to_keep].index.tolist()
 
