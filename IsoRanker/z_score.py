@@ -32,6 +32,11 @@ def calculate_z_score(df, group_col, stat_col):
         if group_col not in out.columns:
             out[group_col] = group.name
 
+        
+        # Move grouping column to the front
+        cols = [group_col] + [c for c in out.columns if c != group_col]
+        out = out[cols]
+
         return out
 
     result = (

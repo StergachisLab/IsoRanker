@@ -21,6 +21,11 @@ def apply_hypothesis_test(df, group_col, test_statistic_func):
         if group_col not in out.columns:
             out[group_col] = group.name
 
+        
+        # Move grouping column to the front
+        cols = [group_col] + [c for c in out.columns if c != group_col]
+        out = out[cols]
+
         return out
 
     # Use include_groups=False to be future-proof:
