@@ -534,8 +534,11 @@ def passes_max_af_filter(record, max_af_index, max_af_cutoff):
         return False
     for annotation in record.info["CSQ"]:
         fields = annotation.split("|")
+        af_str = fields[max_af_index]
+        # Missing / unknown AF -> keep
+        if af_str in ("", "."):
+            return True
         try:
-            af_str = fields[max_af_index]
             if af_str and float(af_str) <= max_af_cutoff:
                 return True
         except ValueError:
