@@ -118,13 +118,16 @@ def main():
 
     ######################## Only filter for OMIM genes. ########################
     # Genes that exist in OMIM (i.e., appear in genemap2)
-    # Any Approved Gene Symbol present in genemap2
-    # Build OMIM gene set safely (no "nan")
+    # OMIM genes that have at least one phenotype listed
     omim_gene_set = set(
-        genemap["Approved Gene Symbol"]
-          .dropna()
-          .astype(str)
-          .str.strip()
+        genemap.loc[
+            genemap["Approved Gene Symbol"].notna()
+            & genemap["Phenotypes"].notna()
+            & (genemap["Phenotypes"].astype(str).str.strip() != ""),
+            "Approved Gene Symbol"
+        ]
+        .astype(str)
+        .str.strip()
     )
 
     # Clean associated_gene
