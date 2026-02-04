@@ -138,22 +138,34 @@ def main():
           .str.strip()
     )
 
+    # def keep_gene_or_fusion_with_omim_partner(g):
+    #     if not g or g == "nan":
+    #         return False
+    #     g = str(g).strip()
+
+    #     # Exact gene in OMIM
+    #     if g in omim_gene_set:
+    #         return True
+
+    #     # Fusion: partners separated by "_"
+    #     parts = [p for p in g.split("_") if p]
+    #     if len(parts) <= 1:
+    #         return False
+
+    #     # Keep if any partner is in OMIM
+    #     return any(p in omim_gene_set for p in parts)
+
     def keep_gene_or_fusion_with_omim_partner(g):
         if not g or g == "nan":
             return False
         g = str(g).strip()
 
-        # Exact gene in OMIM
         if g in omim_gene_set:
             return True
 
-        # Fusion: partners separated by "_"
-        #parts = [p for p in g.split("_") if p]
-        #if len(parts) <= 1:
-        #    return False
+        return False   # <-- add this
 
-        # Keep if any partner is in OMIM
-        #return any(p in omim_gene_set for p in parts)
+
 
     before_n = len(long_format_annotated)
     mask = long_format_annotated["associated_gene"].apply(keep_gene_or_fusion_with_omim_partner)
