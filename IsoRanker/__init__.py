@@ -13,6 +13,8 @@ from .test_statistic import (
     Cyclo_Expression_Outlier_LOE,
     Cyclo_Expression_Outlier_GOE,
     NMD_rare_steady_state_transcript,
+    NMD_rare_steady_state_transcript_hap1,
+    NMD_rare_steady_state_transcript_hap2,
     Noncyclo_Allelic_Imbalance,
     Cyclo_Allelic_Imbalance,
     process_hypothesis_test,

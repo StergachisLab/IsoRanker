@@ -19,6 +19,8 @@ from IsoRanker import (
     Noncyclo_Expression_Outlier_GOE,
     Cyclo_Expression_Outlier_GOE,
     NMD_rare_steady_state_transcript,
+    NMD_rare_steady_state_transcript_hap1,  # ADDED
+    NMD_rare_steady_state_transcript_hap2,  # ADDED
     Noncyclo_Allelic_Imbalance,
     Cyclo_Allelic_Imbalance,
     calculate_ranks_for_sample,
@@ -154,6 +156,8 @@ def main():
         ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
         ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
         ("NMD_rare_steady_state_transcript", NMD_rare_steady_state_transcript),
+        ("NMD_rare_steady_state_transcript_hap1", NMD_rare_steady_state_transcript_hap1),  # ADDED
+        ("NMD_rare_steady_state_transcript_hap2", NMD_rare_steady_state_transcript_hap2),  # ADDED
         ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance),
         ("Cyclo_Allelic_Imbalance", Cyclo_Allelic_Imbalance)
     ]
@@ -685,6 +689,8 @@ def main():
         "NMD_hap2_gene_top_ranked_data.tsv.gz",   # ADDED
         "NMD_hap2_isoform_top_ranked_data.tsv.gz", # ADDED
         "NMD_rare_steady_state_transcript_gene_top_ranked_data.tsv.gz",
+        "NMD_rare_steady_state_transcript_hap1_gene_top_ranked_data.tsv.gz",  # ADDED
+        "NMD_rare_steady_state_transcript_hap2_gene_top_ranked_data.tsv.gz",  # ADDED
         "Noncyclo_GOE_gene_top_ranked_data.tsv.gz",
         "Noncyclo_GOE_isoform_top_ranked_data.tsv.gz",
         "Noncyclo_LOE_gene_top_ranked_data.tsv.gz",

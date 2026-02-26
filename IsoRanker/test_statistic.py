@@ -193,6 +193,47 @@ def NMD_rare_steady_state_transcript(group):
     group['test_statistic'] = results
     return group
 
+
+def NMD_rare_steady_state_transcript_hap1(group):
+    """
+    Calculate test statistic for NMD Rare Steady State Transcript (Haplotype 1).
+    Assumes the bin-aggregated columns (Total_bin_*) were computed using H1_* counts.
+    """
+    results = []
+    for _, row in group.iterrows():
+        cyclo_term = row["Total_bin_cyclo_count_Bin1_le"] / (row["H1_cyclo_count"] + 1)
+        noncyclo_term = row["Total_bin_noncyclo_count_Bin1_le"] / (row["H1_noncyclo_count"] + 1)
+        test_statistic = (
+            (cyclo_term - noncyclo_term)
+            * np.log2(row["Total_bin_cyclo_count_Bin1_le"] + 1)
+            * np.log2(row["Total_bin_noncyclo_count_Bin2_g"] + 1)
+        )
+        results.append(test_statistic)
+
+    group["test_statistic"] = results
+    return group
+
+
+def NMD_rare_steady_state_transcript_hap2(group):
+    """
+    Calculate test statistic for NMD Rare Steady State Transcript (Haplotype 2).
+    Assumes the bin-aggregated columns (Total_bin_*) were computed using H2_* counts.
+    """
+    results = []
+    for _, row in group.iterrows():
+        cyclo_term = row["Total_bin_cyclo_count_Bin1_le"] / (row["H2_cyclo_count"] + 1)
+        noncyclo_term = row["Total_bin_noncyclo_count_Bin1_le"] / (row["H2_noncyclo_count"] + 1)
+        test_statistic = (
+            (cyclo_term - noncyclo_term)
+            * np.log2(row["Total_bin_cyclo_count_Bin1_le"] + 1)
+            * np.log2(row["Total_bin_noncyclo_count_Bin2_g"] + 1)
+        )
+        results.append(test_statistic)
+
+    group["test_statistic"] = results
+    return group
+
+
 def Noncyclo_Allelic_Imbalance(group):
     """
     Calculate test statistic for Noncyclo allelic imbalance.
@@ -419,15 +460,72 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
 
 
 
-        if test_statistic_func == NMD_rare_steady_state_transcript:
+        # if test_statistic_func == NMD_rare_steady_state_transcript:
+        #     # Create bins and calculate aggregated values
+        #     filtered_data["bin"] = filtered_data["isoform_noncyclo_proportion"].apply(
+        #         lambda x: "Bin1_le" if x <= bin_proportion else "Bin2_g"
+        #     )
+
+        #     bin_aggregated = filtered_data.groupby(["Sample", gene_group_col, "bin"]).agg(
+        #         Total_bin_cyclo_count=("cyclo_count", "sum"),
+        #         Total_bin_noncyclo_count=("noncyclo_count", "sum")
+        #     ).reset_index()
+
+        #     # Pivot to wide format
+        #     wide_result = bin_aggregated.pivot_table(
+        #         index=["Sample", gene_group_col],
+        #         columns="bin",
+        #         values=["Total_bin_cyclo_count", "Total_bin_noncyclo_count"],
+        #         fill_value=0
+        #     )
+        #     wide_result.columns = [
+        #         f"{col[0]}_{col[1]}" for col in wide_result.columns.to_flat_index()
+        #     ]
+        #     wide_result.reset_index(inplace=True)
+
+        #     # Merge with gene-level data
+        #     gene_level_data = gene_level_data.merge(wide_result, on=["Sample", gene_group_col], how="left")
+
+        #     # Calculate proportions and differences
+        #     gene_level_data["proportion_in_Bin1_cyclo"] = gene_level_data["Total_bin_cyclo_count_Bin1_le"] / (
+        #         gene_level_data["Total_bin_cyclo_count_Bin1_le"] + gene_level_data["Total_bin_cyclo_count_Bin2_g"]
+        #     )
+        #     gene_level_data["proportion_in_Bin1_noncyclo"] = gene_level_data["Total_bin_noncyclo_count_Bin1_le"] / (
+        #         gene_level_data["Total_bin_noncyclo_count_Bin1_le"] + gene_level_data["Total_bin_noncyclo_count_Bin2_g"]
+        #     )
+
+        #     gene_level_data.fillna(0, inplace=True)
+        #     gene_level_data["bin_proportion_difference"] = (
+        #         gene_level_data["proportion_in_Bin1_cyclo"] - gene_level_data["proportion_in_Bin1_noncyclo"]
+        #     ) / (
+        #         gene_level_data["proportion_in_Bin1_cyclo"] + gene_level_data["proportion_in_Bin1_noncyclo"]
+        #     )
+
+
+        if test_statistic_func in [
+            NMD_rare_steady_state_transcript,
+            NMD_rare_steady_state_transcript_hap1,
+            NMD_rare_steady_state_transcript_hap2,
+        ]:
             # Create bins and calculate aggregated values
             filtered_data["bin"] = filtered_data["isoform_noncyclo_proportion"].apply(
                 lambda x: "Bin1_le" if x <= bin_proportion else "Bin2_g"
             )
 
+            # Choose which columns to aggregate (total vs hap1 vs hap2)
+            if test_statistic_func == NMD_rare_steady_state_transcript:
+                cyclo_col = "cyclo_count"
+                noncyclo_col = "noncyclo_count"
+            elif test_statistic_func == NMD_rare_steady_state_transcript_hap1:
+                cyclo_col = "H1_cyclo_count"
+                noncyclo_col = "H1_noncyclo_count"
+            else:  # NMD_rare_steady_state_transcript_hap2
+                cyclo_col = "H2_cyclo_count"
+                noncyclo_col = "H2_noncyclo_count"
+
             bin_aggregated = filtered_data.groupby(["Sample", gene_group_col, "bin"]).agg(
-                Total_bin_cyclo_count=("cyclo_count", "sum"),
-                Total_bin_noncyclo_count=("noncyclo_count", "sum")
+                Total_bin_cyclo_count=(cyclo_col, "sum"),
+                Total_bin_noncyclo_count=(noncyclo_col, "sum")
             ).reset_index()
 
             # Pivot to wide format
@@ -459,7 +557,6 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             ) / (
                 gene_level_data["proportion_in_Bin1_cyclo"] + gene_level_data["proportion_in_Bin1_noncyclo"]
             )
-
 
         processed_data = gene_level_data
 
@@ -575,11 +672,19 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         #                                  (z_scored_data["isoform_noncyclo_proportion"] > 0.1)]
 
 
-        if test_statistic_func == NMD_rare_steady_state_transcript:
+        if test_statistic_func in [
+            NMD_rare_steady_state_transcript,
+            NMD_rare_steady_state_transcript_hap1,
+            NMD_rare_steady_state_transcript_hap2,
+        ]:
             z_scored_data = z_scored_data[z_scored_data["bin_proportion_difference"] > 0]
             z_scored_data = z_scored_data[z_scored_data["Total_bin_cyclo_count_Bin1_le"] > 10]
         elif test_statistic_func == NMD_test_statistic:
             z_scored_data = z_scored_data[z_scored_data["NormalizedFractionDifference"] > 0]
+        elif test_statistic_func == NMD_hap1_test_statistic:
+            z_scored_data = z_scored_data[z_scored_data["NormalizedFractionDifference_H1"] > 0]
+        elif test_statistic_func == NMD_hap2_test_statistic:
+            z_scored_data = z_scored_data[z_scored_data["NormalizedFractionDifference_H2"] > 0]
         elif test_statistic_func == Noncyclo_Expression_Outlier_LOE:
             z_scored_data = z_scored_data[z_scored_data["Noncyclo_TPM_Z_Score"] < 0]
         elif test_statistic_func == Noncyclo_Expression_Outlier_GOE:
