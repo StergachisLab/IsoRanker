@@ -6,6 +6,8 @@ from .calculations import apply_hypothesis_test
 from .z_score import calculate_z_score
 from .test_statistic import (
     NMD_test_statistic,
+    NMD_hap1_test_statistic,
+    NMD_hap2_test_statistic,
     Noncyclo_Expression_Outlier_LOE,
     Noncyclo_Expression_Outlier_GOE,
     Cyclo_Expression_Outlier_LOE,

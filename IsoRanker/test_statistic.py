@@ -25,6 +25,76 @@ def NMD_test_statistic(group):
     group['test_statistic'] = results
     return group
 
+def NMD_hap1_test_statistic(group):
+    """
+    Calculate test statistic for NMD.
+    This function calculates a unique test statistic for each sample in the group.
+    """
+    results = []
+    for _, row in group.iterrows():
+        # Calculate the test statistic for this specific sample
+
+        # Adequate phasing for noncyclo
+        noncyclo_reads_phased = (row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
+        noncyclo_proportion_phased = (noncyclo_reads_phased + 1) / (noncyclo_reads_phased + row['H0_noncyclo_count'] + 1)
+
+        # Adequate phasing for cyclo
+        cyclo_reads_phased = (row['H1_cyclo_count'] + row['H2_cyclo_count'])
+        cyclo_proportion_phased = (cyclo_reads_phased + 1) / (cyclo_reads_phased + row['H0_cyclo_count'] + 1)
+
+        # Convert to TPM
+        row_Cyclo_hap1_TPM = (row['H1_cyclo_count'] / row["total_cyclo"]) * 1e6
+        row_Noncyclo_hap1_TPM = (row['H1_noncyclo_count'] / row["total_noncyclo"]) * 1e6
+
+        #If the proportion phased is too small, then the test stat can't be calculated.
+        if (noncyclo_proportion_phased < 0.1) | (noncyclo_reads_phased < 10) | (cyclo_proportion_phased < 0.1) | (cyclo_reads_phased < 10):
+            test_statistic = 0
+        else:
+            # Calculate the test statistic for this specific sample
+            ratio = (row_Cyclo_hap1_TPM + 1) / (row_Noncyclo_hap1_TPM + 1)
+            test_statistic = np.log2(ratio) * np.log2(row_Cyclo_hap1_TPM + 2)
+
+        results.append(test_statistic)
+    
+    # Assign the calculated test statistics back to the group
+    group['test_statistic'] = results
+    return group
+
+def NMD_hap2_test_statistic(group):
+    """
+    Calculate test statistic for NMD.
+    This function calculates a unique test statistic for each sample in the group.
+    """
+    results = []
+    for _, row in group.iterrows():
+        # Calculate the test statistic for this specific sample
+
+        # Adequate phasing for noncyclo
+        noncyclo_reads_phased = (row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
+        noncyclo_proportion_phased = (noncyclo_reads_phased + 1) / (noncyclo_reads_phased + row['H0_noncyclo_count'] + 1)
+
+        # Adequate phasing for cyclo
+        cyclo_reads_phased = (row['H1_cyclo_count'] + row['H2_cyclo_count'])
+        cyclo_proportion_phased = (cyclo_reads_phased + 1) / (cyclo_reads_phased + row['H0_cyclo_count'] + 1)
+
+        # Convert to TPM
+        row_Cyclo_hap2_TPM = (row['H2_cyclo_count'] / row["total_cyclo"]) * 1e6
+        row_Noncyclo_hap2_TPM = (row['H2_noncyclo_count'] / row["total_noncyclo"]) * 1e6
+
+        #If the proportion phased is too small, then the test stat can't be calculated.
+        if (noncyclo_proportion_phased < 0.1) | (noncyclo_reads_phased < 10) | (cyclo_proportion_phased < 0.1) | (cyclo_reads_phased < 10):
+            test_statistic = 0
+        else:
+            # Calculate the test statistic for this specific sample
+            ratio = (row_Cyclo_hap2_TPM + 1) / (row_Noncyclo_hap2_TPM + 1)
+            test_statistic = np.log2(ratio) * np.log2(row_Cyclo_hap2_TPM + 2)
+
+        results.append(test_statistic)
+    
+    # Assign the calculated test statistics back to the group
+    group['test_statistic'] = results
+    return group
+
 
 def Noncyclo_Expression_Outlier_LOE(group):
     """Calculate test statistic for Noncyclo Expression Outlier - Loss of Expression (LOE)."""
@@ -412,6 +482,34 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
         )
         processed_data["NormalizedFractionDifference"] = (
             processed_data["NormalizedCycloFraction"] - processed_data["NormalizedNoncycloFraction"]
+        )
+
+    elif test_statistic_func == NMD_hap1_test_statistic:
+
+        processed_data["CycloFraction_H1"] = processed_data["H1_cyclo_count"] / processed_data["total_cyclo"]
+        processed_data["NoncycloFraction_H1"] = processed_data["H1_noncyclo_count"] / processed_data["total_noncyclo"]
+        processed_data["NormalizedCycloFraction_H1"] = processed_data["CycloFraction_H1"] / (
+            processed_data["CycloFraction_H1"] + processed_data["NoncycloFraction_H1"]
+        )
+        processed_data["NormalizedNoncycloFraction_H1"] = processed_data["NoncycloFraction_H1"] / (
+            processed_data["CycloFraction_H1"] + processed_data["NoncycloFraction_H1"]
+        )
+        processed_data["NormalizedFractionDifference_H1"] = (
+            processed_data["NormalizedCycloFraction_H1"] - processed_data["NormalizedNoncycloFraction_H1"]
+        )
+
+    elif test_statistic_func == NMD_hap2_test_statistic:
+
+        processed_data["CycloFraction_H2"] = processed_data["H2_cyclo_count"] / processed_data["total_cyclo"]
+        processed_data["NoncycloFraction_H2"] = processed_data["H2_noncyclo_count"] / processed_data["total_noncyclo"]
+        processed_data["NormalizedCycloFraction_H2"] = processed_data["CycloFraction_H2"] / (
+            processed_data["CycloFraction_H2"] + processed_data["NoncycloFraction_H2"]
+        )
+        processed_data["NormalizedNoncycloFraction_H2"] = processed_data["NoncycloFraction_H2"] / (
+            processed_data["CycloFraction_H2"] + processed_data["NoncycloFraction_H2"]
+        )
+        processed_data["NormalizedFractionDifference_H2"] = (
+            processed_data["NormalizedCycloFraction_H2"] - processed_data["NormalizedNoncycloFraction_H2"]
         )
 
     elif test_statistic_func in [Noncyclo_Expression_Outlier_LOE, Noncyclo_Expression_Outlier_GOE]:

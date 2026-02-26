@@ -25,7 +25,8 @@ setup(
             "isoranker_pb_run_analysis_full_with_isoform_allelic=IsoRanker.isoranker_pb_run_analysis_full_with_isoform_allelic:main",
             "isoranker_pb_run_analysis_full_with_isoform_allelic_omim=IsoRanker.isoranker_pb_run_analysis_full_with_isoform_allelic_omim:main",
             "isoranker_pb_run_analysis_full_with_isoform_allelic_no_novel=IsoRanker.isoranker_pb_run_analysis_full_with_isoform_allelic_no_novel:main",
-            "isoranker_pb_run_analysis_full_with_isoform_allelic_protein_coding=IsoRanker.isoranker_pb_run_analysis_full_with_isoform_allelic_protein_coding:main"
+            "isoranker_pb_run_analysis_full_with_isoform_allelic_protein_coding=IsoRanker.isoranker_pb_run_analysis_full_with_isoform_allelic_protein_coding:main",
+            "isoranker_pb_run_analysis_full_with_isoform_allelic_hap_NMD=IsoRanker.isoranker_pb_run_analysis_full_with_isoform_allelic_hap_NMD:main"
         ],
     },
     author="Hank Cheng",
