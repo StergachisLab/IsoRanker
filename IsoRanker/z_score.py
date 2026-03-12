@@ -51,50 +51,44 @@ def calculate_z_score(df, group_col, stat_col):
 import numpy as np
 
 # Using MAD instead of SD
-def calculate_z_score_MAD(df, group_col, stat_col, variance_floor=None):
-    """
-    Robust leave-one-out z-score using MAD with variance floor.
-    """
+def calculate_z_score_MAD(df, group_col, stat_col, variance_floor=0.1):
 
     def robust_z_func(group):
         group = group.copy()
-        
         group["z_score_of_test_stat"] = np.nan
 
         stats = group[stat_col].values
 
-        # Precompute global MAD for fallback if desired
-        # global_median = np.median(stats)
-        # global_mad = np.median(np.abs(stats - global_median))
-
-        # Optional automatic variance floor
-        if variance_floor is None:
-            floor = 0.1  # You can tune this
-        else:
-            floor = variance_floor
-
         for i in range(len(group)):
             x_i = stats[i]
-
-            # Leave-one-out stats
             others = np.delete(stats, i)
+
+            if len(others) == 0:
+                group.at[group.index[i], "z_score_of_test_stat"] = 0
+                continue
 
             median_others = np.median(others)
             mad_others = np.median(np.abs(others - median_others))
+            mad_others = max(mad_others, variance_floor)
 
-            # Variance shrinkage
-            mad_others = max(mad_others, floor)
-
-            # Using 1.4826 for interpretability. Makes it similar to z-score
-            z = (x_i - median_others) / (1.4826 * mad_others)
-
-            group.iloc[i, group.columns.get_loc('z_score_of_test_stat')] = z
+            z = (x_i - median_others) /  (1.4826 * mad_others)
+            group.at[group.index[i], "z_score_of_test_stat"] = z
 
         return group
 
+    # --- wrapper to restore grouping column ---
+    def wrapper(group):
+        out = robust_z_func(group).copy()
+
+        if group_col not in out.columns:
+            out[group_col] = group.name
+
+        cols = [group_col] + [c for c in out.columns if c != group_col]
+        return out[cols]
+
     result = (
         df.groupby(group_col)
-          .apply(robust_z_func, include_groups=False)
+          .apply(wrapper, include_groups=False)
           .reset_index(drop=True)
     )
 
