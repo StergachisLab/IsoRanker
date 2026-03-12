@@ -721,5 +721,103 @@ def main():
     print("File organization complete!", flush=True)
 
 
+    ###################################
+    # Combine tests
+    ###################################
+    from pathlib import Path
+
+    # Directory containing *_full_ranked_data.tsv files
+    indir = Path("Output/intermediate")
+
+    # Collect all test files
+    files = list(indir.glob("*_full_ranked_data.tsv.gz"))
+
+    records = []
+
+    for f in files:
+        # Read the file
+        df = pd.read_csv(f, sep="\t", compression="gzip")
+
+        # Make sure required columns exist
+        required = {"Sample", "associated_gene", "rank_top_99_5_percentile", "Phenotypes"}
+        if not required.issubset(df.columns):
+            print(f"Skipping {f}, missing required columns")
+            continue
+
+        sub = df[["Sample", "associated_gene", "rank_top_99_5_percentile", "Phenotypes"]].copy()
+
+        # Filter rank < 100
+        sub = sub[sub["rank_top_99_5_percentile"] < 100]
+
+        # Keep best rank per sample-gene pair (per file)
+        sub = sub.sort_values("rank_top_99_5_percentile").drop_duplicates(
+            subset=["Sample", "associated_gene"], keep="first"
+        )
+
+        # Add file info
+        sub["source_of_hits"] = f.name
+
+        records.append(sub)
+
+    # Combine all results
+    all_hits = pd.concat(records, ignore_index=True)
+
+    # Count number of hits per sample-gene
+    summary = (
+        all_hits.groupby(["Sample", "associated_gene"])
+        .agg(
+            number_of_hits=("source_of_hits", "count"),
+            source_of_hits=("source_of_hits", lambda x: ",".join(sorted(set(x)))),
+            Phenotypes=("Phenotypes", lambda x: ";".join(sorted(set(x.dropna()))))
+        )
+        .reset_index()
+    )
+
+    # Save output
+    outf = "sample_gene_hits_summary.tsv"
+    summary.to_csv(outf, sep="\t", index=False)
+
+    print(f"Saved: {outf}")
+
+    ###################################
+    # Add genetic data to combined output from including all tests 
+    ###################################
+
+    ### Add annotations to isoranker tables
+    gene_file_input = "sample_gene_hits_summary.tsv"
+    gene_level_merged_df = pd.read_csv(gene_file_input, sep="\t")
+
+    # Placeholder for merged haplotype data
+    haplotype_entries = []
+
+    # For each sample in gene_level_merged_df
+    for sample in gene_level_merged_df['Sample'].unique():
+        tsv_path = f"Output/intermediate/variant_annotations_tables/{sample}_gene_haplotype_split.tsv"
+        
+        if os.path.exists(tsv_path):
+            # Load haplotype data
+            haplo_df = pd.read_csv(tsv_path, sep="\t")
+            haplo_df["Sample"] = sample  # tag with sample for merge
+            
+            haplotype_entries.append(haplo_df)
+        else:
+            print(f"Haplotype TSV not found for {sample}")
+
+    # Combine all haplotype info
+    all_haplo = pd.concat(haplotype_entries, ignore_index=True)
+
+    # Rename for clarity to match gene_level_merged_df
+    all_haplo.rename(columns={"Gene": "associated_gene"}, inplace=True)
+
+    # Merge into your existing gene-level dataframe
+    gene_level_merged_df_variant_annotated = gene_level_merged_df.merge(
+        all_haplo, how="left", on=["Sample", "associated_gene"]
+    )
+    gene_level_merged_df_variant_annotated.to_csv('combined_merged_ranked_gene_with_phenotype_with_variant.tsv.gz', index=False, sep="\t", compression="gzip")
+
+    gene_level_merged_df_variant_annotated.to_csv('combined_merged_ranked_gene_with_phenotype_with_variant.tsv', index=False, sep="\t")
+
+
+
 if __name__ == "__main__":
     main()
