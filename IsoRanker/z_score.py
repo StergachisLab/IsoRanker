@@ -58,6 +58,9 @@ def calculate_z_score_MAD(df, group_col, stat_col, variance_floor=None):
 
     def robust_z_func(group):
         group = group.copy()
+        
+        group["z_score_of_test_stat"] = np.nan
+
         stats = group[stat_col].values
 
         # Precompute global MAD for fallback if desired
