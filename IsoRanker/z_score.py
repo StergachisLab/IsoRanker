@@ -55,6 +55,8 @@ def calculate_z_score_MAD(df, group_col, stat_col, variance_floor=0.1):
 
     def robust_z_func(group):
         group = group.copy()
+
+        # Make sure ALL original columns stay
         group["z_score_of_test_stat"] = np.nan
 
         stats = group[stat_col].values
@@ -71,24 +73,14 @@ def calculate_z_score_MAD(df, group_col, stat_col, variance_floor=0.1):
             mad_others = np.median(np.abs(others - median_others))
             mad_others = max(mad_others, variance_floor)
 
-            z = (x_i - median_others) /  (1.4826 * mad_others)
+            z = (x_i - median_others) / (1.4826 * mad_others)
             group.at[group.index[i], "z_score_of_test_stat"] = z
 
         return group
 
-    # --- wrapper to restore grouping column ---
-    def wrapper(group):
-        out = robust_z_func(group).copy()
-
-        if group_col not in out.columns:
-            out[group_col] = group.name
-
-        cols = [group_col] + [c for c in out.columns if c != group_col]
-        return out[cols]
-
     result = (
-        df.groupby(group_col)
-          .apply(wrapper, include_groups=False)
+        df.groupby(group_col, group_keys=False)
+          .apply(robust_z_func)
           .reset_index(drop=True)
     )
 
