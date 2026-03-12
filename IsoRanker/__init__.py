@@ -3,7 +3,10 @@ from .preprocessing import (
     update_files_with_haplotype_info
 )
 from .calculations import apply_hypothesis_test
-from .z_score import calculate_z_score
+from .z_score import (
+    calculate_z_score,
+    calculate_z_score_MAD
+    )
 from .test_statistic import (
     NMD_test_statistic,
     NMD_hap1_test_statistic,

@@ -6,6 +6,8 @@ from .calculations import apply_hypothesis_test
 
 from .z_score import calculate_z_score
 
+from .z_score import calculate_z_score_MAD
+
 from .ranking import calculate_ranks_for_sample
 
 
@@ -655,7 +657,7 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     tested_data = apply_hypothesis_test(processed_data, group_col=gene_group_col if gene_level else group_col, test_statistic_func=test_statistic_func)
     
     # Calculate z-scores
-    z_scored_data = calculate_z_score(tested_data, group_col=gene_group_col if gene_level else group_col, stat_col="test_statistic")
+    z_scored_data = calculate_z_score_MAD(tested_data, group_col=gene_group_col if gene_level else group_col, stat_col="test_statistic")
 
     # Output the z_scored_data as an intermediate output. This includes the test stat and z-scores for all genes/isoforms, even unranked ones.
     test_name = test_statistic_func.__name__
