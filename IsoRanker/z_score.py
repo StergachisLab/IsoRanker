@@ -51,36 +51,57 @@ def calculate_z_score(df, group_col, stat_col):
 import numpy as np
 
 # Using MAD instead of SD
-def calculate_z_score_MAD(df, group_col, stat_col, variance_floor=0.1):
+def calculate_z_score_MAD(df, group_col, stat_col, variance_floor=None):
+    """
+    Calculate robust leave-one-out standardized scores within each group
+    using the median absolute deviation (MAD).
 
-    def robust_z_func(group):
+    Parameters:
+    - df: Input DataFrame.
+    - group_col: Column to group by.
+    - stat_col: Column containing the test statistic.
+    - variance_floor: Minimum MAD value to use in denominator.
+                      If None, defaults to 0.1.
+    """
+    def z_score_func(group):
+        # Work on a copy to avoid mutating the original group
         group = group.copy()
 
-        # Make sure ALL original columns stay
-        group["z_score_of_test_stat"] = np.nan
+        floor = 0.1 if variance_floor is None else variance_floor
 
-        stats = group[stat_col].values
-
-        for i in range(len(group)):
-            x_i = stats[i]
-            others = np.delete(stats, i)
+        for i, row in group.iterrows():
+            others = group.loc[group.index != i, stat_col]
 
             if len(others) == 0:
-                group.at[group.index[i], "z_score_of_test_stat"] = 0
+                group.at[i, 'z_score_of_test_stat'] = 0
                 continue
 
-            median_others = np.median(others)
+            median_others = others.median()
             mad_others = np.median(np.abs(others - median_others))
-            mad_others = max(mad_others, variance_floor)
+            mad_others = max(mad_others, floor)
 
-            z = (x_i - median_others) / (1.4826 * mad_others)
-            group.at[group.index[i], "z_score_of_test_stat"] = z
+            group.at[i, 'z_score_of_test_stat'] = (
+                0 if mad_others == 0 else (row[stat_col] - median_others) / (1.4826 * mad_others)
+            )
 
         return group
 
+    # Wrapper to restore grouping column, matching calculate_z_score()
+    def wrapper(group):
+        out = z_score_func(group)
+        out = out.copy()
+
+        if group_col not in out.columns:
+            out[group_col] = group.name
+
+        cols = [group_col] + [c for c in out.columns if c != group_col]
+        out = out[cols]
+
+        return out
+
     result = (
-        df.groupby(group_col, group_keys=False)
-          .apply(robust_z_func)
+        df.groupby(group_col)
+          .apply(wrapper, include_groups=False)
           .reset_index(drop=True)
     )
 
