@@ -10,21 +10,75 @@ from .z_score import calculate_z_score_MAD
 
 from .ranking import calculate_ranks_for_sample
 
+def _leave_one_out_min(s):
+    vals = s.to_numpy()
+    n = len(vals)
+    if n <= 1:
+        return np.full(n, np.nan)
+
+    min1 = np.nanmin(vals)
+    min_count = np.sum(vals == min1)
+
+    if min_count > 1:
+        return np.full(n, min1)
+
+    min2 = np.nanmin(vals[vals != min1])
+    return np.where(vals == min1, min2, min1)
+
+
+def _leave_one_out_max(s):
+    vals = s.to_numpy()
+    n = len(vals)
+    if n <= 1:
+        return np.full(n, np.nan)
+
+    max1 = np.nanmax(vals)
+    max_count = np.sum(vals == max1)
+
+    if max_count > 1:
+        return np.full(n, max1)
+
+    max2 = np.nanmax(vals[vals != max1])
+    return np.where(vals == max1, max2, max1)
+
+
+def _leave_one_out_median(s):
+    vals = s.to_numpy()
+    n = len(vals)
+    if n <= 1:
+        return np.full(n, np.nan)
+
+    out = np.empty(n)
+    for i in range(n):
+        out[i] = np.median(np.delete(vals, i))
+    return out
+
+# def NMD_test_statistic(group):
+#     """
+#     Calculate test statistic for NMD.
+#     This function calculates a unique test statistic for each sample in the group.
+#     """
+#     results = []
+#     for _, row in group.iterrows():
+#         # Calculate the test statistic for this specific sample
+#         ratio = (row['Cyclo_TPM'] + 1) / (row['Noncyclo_TPM'] + 1)
+#         test_statistic = np.log2(ratio) * np.log2(row['Cyclo_TPM'] + 2)
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
 
 def NMD_test_statistic(group):
     """
     Calculate test statistic for NMD.
     This function calculates a unique test statistic for each sample in the group.
     """
-    results = []
-    for _, row in group.iterrows():
-        # Calculate the test statistic for this specific sample
-        ratio = (row['Cyclo_TPM'] + 1) / (row['Noncyclo_TPM'] + 1)
-        test_statistic = np.log2(ratio) * np.log2(row['Cyclo_TPM'] + 2)
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
+    group = group.copy()
+
+    ratio = (group["Cyclo_TPM"] + 1) / (group["Noncyclo_TPM"] + 1)
+    group["test_statistic"] = np.log2(ratio) * np.log2(group["Cyclo_TPM"] + 2)
+
     return group
 
 def NMD_hap1_test_statistic(group):
@@ -97,81 +151,148 @@ def NMD_hap2_test_statistic(group):
     group['test_statistic'] = results
     return group
 
+# def Noncyclo_Expression_Outlier_LOE(group):
+#     """Calculate test statistic for Noncyclo Expression Outlier - Loss of Expression (LOE)."""
+#     results = []
+#     for _, row in group.iterrows():
+#         # Exclude the current sample and calculate metrics from other samples
+#         other_samples = group.drop(row.name)
+#         min_noncyclo_TPM = other_samples['Noncyclo_TPM'].min()
+#         median_noncyclo_TPM = other_samples['Noncyclo_TPM'].median()
+        
+#         # Calculate the test statistic
+#         ratio = (min_noncyclo_TPM + 1) / (row['Noncyclo_TPM'] + 1)
+#         test_statistic = np.log2(ratio) * np.log2(median_noncyclo_TPM + 2)
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
 
 def Noncyclo_Expression_Outlier_LOE(group):
     """Calculate test statistic for Noncyclo Expression Outlier - Loss of Expression (LOE)."""
-    results = []
-    for _, row in group.iterrows():
-        # Exclude the current sample and calculate metrics from other samples
-        other_samples = group.drop(row.name)
-        min_noncyclo_TPM = other_samples['Noncyclo_TPM'].min()
-        median_noncyclo_TPM = other_samples['Noncyclo_TPM'].median()
-        
-        # Calculate the test statistic
-        ratio = (min_noncyclo_TPM + 1) / (row['Noncyclo_TPM'] + 1)
-        test_statistic = np.log2(ratio) * np.log2(median_noncyclo_TPM + 2)
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
+    group = group.copy()
+
+    loo_min = _leave_one_out_min(group["Noncyclo_TPM"])
+    loo_median = _leave_one_out_median(group["Noncyclo_TPM"])
+
+    ratio = (loo_min + 1) / (group["Noncyclo_TPM"] + 1)
+    group["test_statistic"] = np.log2(ratio) * np.log2(loo_median + 2)
+
     return group
 
+# def Noncyclo_Expression_Outlier_GOE(group):
+#     """Calculate test statistic for Noncyclo Expression Outlier - Gain of Expression (GOE)."""
+#     results = []
+#     for _, row in group.iterrows():
+#         # Exclude the current sample and calculate metrics from other samples
+#         other_samples = group.drop(row.name)
+#         max_noncyclo_TPM = other_samples['Noncyclo_TPM'].max()
+#         median_noncyclo_TPM = other_samples['Noncyclo_TPM'].median()
+        
+#         # Calculate the test statistic
+#         ratio = (row['Noncyclo_TPM'] + 1) / (max_noncyclo_TPM + 1)
+#         test_statistic = np.log2(ratio) * np.log2(median_noncyclo_TPM + 2)
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
 
 def Noncyclo_Expression_Outlier_GOE(group):
     """Calculate test statistic for Noncyclo Expression Outlier - Gain of Expression (GOE)."""
-    results = []
-    for _, row in group.iterrows():
-        # Exclude the current sample and calculate metrics from other samples
-        other_samples = group.drop(row.name)
-        max_noncyclo_TPM = other_samples['Noncyclo_TPM'].max()
-        median_noncyclo_TPM = other_samples['Noncyclo_TPM'].median()
-        
-        # Calculate the test statistic
-        ratio = (row['Noncyclo_TPM'] + 1) / (max_noncyclo_TPM + 1)
-        test_statistic = np.log2(ratio) * np.log2(median_noncyclo_TPM + 2)
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
+    group = group.copy()
+
+    loo_max = _leave_one_out_max(group["Noncyclo_TPM"])
+    loo_median = _leave_one_out_median(group["Noncyclo_TPM"])
+
+    ratio = (group["Noncyclo_TPM"] + 1) / (loo_max + 1)
+    group["test_statistic"] = np.log2(ratio) * np.log2(loo_median + 2)
+
     return group
+
+# def Cyclo_Expression_Outlier_LOE(group):
+#     """Calculate test statistic for Cyclo Expression Outlier - Loss of Expression (LOE)."""
+#     results = []
+#     for _, row in group.iterrows():
+#         # Exclude the current sample and calculate metrics from other samples
+#         other_samples = group.drop(row.name)
+#         min_cyclo_TPM = other_samples['Cyclo_TPM'].min()
+#         median_cyclo_TPM = other_samples['Cyclo_TPM'].median()
+        
+#         # Calculate the test statistic
+#         ratio = (min_cyclo_TPM + 1) / (row['Cyclo_TPM'] + 1)
+#         test_statistic = np.log2(ratio) * np.log2(median_cyclo_TPM + 2)
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
 
 
 def Cyclo_Expression_Outlier_LOE(group):
     """Calculate test statistic for Cyclo Expression Outlier - Loss of Expression (LOE)."""
-    results = []
-    for _, row in group.iterrows():
-        # Exclude the current sample and calculate metrics from other samples
-        other_samples = group.drop(row.name)
-        min_cyclo_TPM = other_samples['Cyclo_TPM'].min()
-        median_cyclo_TPM = other_samples['Cyclo_TPM'].median()
-        
-        # Calculate the test statistic
-        ratio = (min_cyclo_TPM + 1) / (row['Cyclo_TPM'] + 1)
-        test_statistic = np.log2(ratio) * np.log2(median_cyclo_TPM + 2)
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
+    group = group.copy()
+
+    loo_min = _leave_one_out_min(group["Cyclo_TPM"])
+    loo_median = _leave_one_out_median(group["Cyclo_TPM"])
+
+    ratio = (loo_min + 1) / (group["Cyclo_TPM"] + 1)
+    group["test_statistic"] = np.log2(ratio) * np.log2(loo_median + 2)
+
     return group
 
+# def Cyclo_Expression_Outlier_GOE(group):
+#     """Calculate test statistic for Cyclo Expression Outlier - Gain of Expression (GOE)."""
+#     results = []
+#     for _, row in group.iterrows():
+#         # Exclude the current sample and calculate metrics from other samples
+#         other_samples = group.drop(row.name)
+#         max_cyclo_TPM = other_samples['Cyclo_TPM'].max()
+#         median_cyclo_TPM = other_samples['Cyclo_TPM'].median()
+        
+#         # Calculate the test statistic
+#         ratio = (row['Cyclo_TPM'] + 1) / (max_cyclo_TPM + 1)
+#         test_statistic = np.log2(ratio) * np.log2(median_cyclo_TPM + 2)
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
 
 def Cyclo_Expression_Outlier_GOE(group):
     """Calculate test statistic for Cyclo Expression Outlier - Gain of Expression (GOE)."""
-    results = []
-    for _, row in group.iterrows():
-        # Exclude the current sample and calculate metrics from other samples
-        other_samples = group.drop(row.name)
-        max_cyclo_TPM = other_samples['Cyclo_TPM'].max()
-        median_cyclo_TPM = other_samples['Cyclo_TPM'].median()
-        
-        # Calculate the test statistic
-        ratio = (row['Cyclo_TPM'] + 1) / (max_cyclo_TPM + 1)
-        test_statistic = np.log2(ratio) * np.log2(median_cyclo_TPM + 2)
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
+    group = group.copy()
+
+    loo_max = _leave_one_out_max(group["Cyclo_TPM"])
+    loo_median = _leave_one_out_median(group["Cyclo_TPM"])
+
+    ratio = (group["Cyclo_TPM"] + 1) / (loo_max + 1)
+    group["test_statistic"] = np.log2(ratio) * np.log2(loo_median + 2)
+
     return group
+
+
+# def NMD_rare_steady_state_transcript(group):
+#     """
+#     Calculate test statistic for NMD Rare Steady State Transcript.
+#     This function calculates a unique test statistic for each sample in the group.
+#     """
+#     results = []
+#     for _, row in group.iterrows():
+#         # Calculate the test statistic for this specific sample
+#         cyclo_term = row['Total_bin_cyclo_count_Bin1_le'] / (row['cyclo_count'] + 1)
+#         noncyclo_term = row['Total_bin_noncyclo_count_Bin1_le'] / (row['noncyclo_count'] + 1)
+#         test_statistic = (
+#             (cyclo_term - noncyclo_term) *
+#             np.log2(row['Total_bin_cyclo_count_Bin1_le'] + 1) *
+#             np.log2(row['Total_bin_noncyclo_count_Bin2_g'] + 1)
+#         )
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
 
 
 def NMD_rare_steady_state_transcript(group):
@@ -179,22 +300,18 @@ def NMD_rare_steady_state_transcript(group):
     Calculate test statistic for NMD Rare Steady State Transcript.
     This function calculates a unique test statistic for each sample in the group.
     """
-    results = []
-    for _, row in group.iterrows():
-        # Calculate the test statistic for this specific sample
-        cyclo_term = row['Total_bin_cyclo_count_Bin1_le'] / (row['cyclo_count'] + 1)
-        noncyclo_term = row['Total_bin_noncyclo_count_Bin1_le'] / (row['noncyclo_count'] + 1)
-        test_statistic = (
-            (cyclo_term - noncyclo_term) *
-            np.log2(row['Total_bin_cyclo_count_Bin1_le'] + 1) *
-            np.log2(row['Total_bin_noncyclo_count_Bin2_g'] + 1)
-        )
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
-    return group
+    group = group.copy()
 
+    cyclo_term = group["Total_bin_cyclo_count_Bin1_le"] / (group["cyclo_count"] + 1)
+    noncyclo_term = group["Total_bin_noncyclo_count_Bin1_le"] / (group["noncyclo_count"] + 1)
+
+    group["test_statistic"] = (
+        (cyclo_term - noncyclo_term) *
+        np.log2(group["Total_bin_cyclo_count_Bin1_le"] + 1) *
+        np.log2(group["Total_bin_noncyclo_count_Bin2_g"] + 1)
+    )
+
+    return group
 
 def NMD_rare_steady_state_transcript_hap1(group):
     """
@@ -236,58 +353,112 @@ def NMD_rare_steady_state_transcript_hap2(group):
     return group
 
 
+# def Noncyclo_Allelic_Imbalance(group):
+#     """
+#     Calculate test statistic for Noncyclo allelic imbalance.
+#     This function calculates a unique test statistic for each sample in the group.
+#     """
+#     results = []
+#     for _, row in group.iterrows():
+#         # Calculate the test statistic for this specific sample
+
+#         reads_phased = (row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
+#         proportion_phased = (reads_phased + 1) / (reads_phased + row['H0_noncyclo_count'] + 1)
+
+#         #If the proportion phased is too small, then the test stat can't be calculated.
+#         if (proportion_phased < 0.1) | (reads_phased < 10):
+#             test_statistic = 0
+#         else:
+#             test_statistic = abs(
+#                 np.log2((row['H1_noncyclo_count']+1) / (row['H2_noncyclo_count']+1)) *
+#                 np.log2(row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
+#             )
+
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
+
 def Noncyclo_Allelic_Imbalance(group):
     """
     Calculate test statistic for Noncyclo allelic imbalance.
     This function calculates a unique test statistic for each sample in the group.
     """
-    results = []
-    for _, row in group.iterrows():
-        # Calculate the test statistic for this specific sample
+    group = group.copy()
 
-        reads_phased = (row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
-        proportion_phased = (reads_phased + 1) / (reads_phased + row['H0_noncyclo_count'] + 1)
+    reads_phased = group["H1_noncyclo_count"] + group["H2_noncyclo_count"]
 
-        #If the proportion phased is too small, then the test stat can't be calculated.
-        if (proportion_phased < 0.1) | (reads_phased < 10):
-            test_statistic = 0
-        else:
-            test_statistic = abs(
-                np.log2((row['H1_noncyclo_count']+1) / (row['H2_noncyclo_count']+1)) *
-                np.log2(row['H1_noncyclo_count'] + row['H2_noncyclo_count'])
-            )
+    proportion_phased = (
+        (reads_phased + 1) /
+        (reads_phased + group["H0_noncyclo_count"] + 1)
+    )
 
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
+    stat = np.abs(
+        np.log2((group["H1_noncyclo_count"] + 1) / (group["H2_noncyclo_count"] + 1)) *
+        np.log2(reads_phased)
+    )
+
+    group["test_statistic"] = np.where(
+        (proportion_phased < 0.1) | (reads_phased < 10),
+        0,
+        stat
+    )
+
     return group
+
+# def Cyclo_Allelic_Imbalance(group):
+#     """
+#     Calculate test statistic for Cyclo allelic imbalance.
+#     This function calculates a unique test statistic for each sample in the group.
+#     """
+#     results = []
+#     for _, row in group.iterrows():
+#         # Calculate the test statistic for this specific sample
+
+#         reads_phased = (row['H1_cyclo_count'] + row['H2_cyclo_count'])
+#         proportion_phased = (reads_phased + 1) / (reads_phased + row['H0_cyclo_count'] + 1)
+
+#         #If the proportion phased is too small, then the test stat can't be calculated.
+#         if (proportion_phased < 0.1) | (reads_phased < 10):
+#             test_statistic = 0
+#         else:
+#             test_statistic = abs(
+#                 np.log2((row['H1_cyclo_count']+1) / (row['H2_cyclo_count']+1)) *
+#                 np.log2(row['H1_cyclo_count'] + row['H2_cyclo_count'])
+#             )
+
+#         results.append(test_statistic)
+    
+#     # Assign the calculated test statistics back to the group
+#     group['test_statistic'] = results
+#     return group
 
 def Cyclo_Allelic_Imbalance(group):
     """
     Calculate test statistic for Cyclo allelic imbalance.
     This function calculates a unique test statistic for each sample in the group.
     """
-    results = []
-    for _, row in group.iterrows():
-        # Calculate the test statistic for this specific sample
+    group = group.copy()
 
-        reads_phased = (row['H1_cyclo_count'] + row['H2_cyclo_count'])
-        proportion_phased = (reads_phased + 1) / (reads_phased + row['H0_cyclo_count'] + 1)
+    reads_phased = group["H1_cyclo_count"] + group["H2_cyclo_count"]
 
-        #If the proportion phased is too small, then the test stat can't be calculated.
-        if (proportion_phased < 0.1) | (reads_phased < 10):
-            test_statistic = 0
-        else:
-            test_statistic = abs(
-                np.log2((row['H1_cyclo_count']+1) / (row['H2_cyclo_count']+1)) *
-                np.log2(row['H1_cyclo_count'] + row['H2_cyclo_count'])
-            )
+    proportion_phased = (
+        (reads_phased + 1) /
+        (reads_phased + group["H0_cyclo_count"] + 1)
+    )
 
-        results.append(test_statistic)
-    
-    # Assign the calculated test statistics back to the group
-    group['test_statistic'] = results
+    stat = np.abs(
+        np.log2((group["H1_cyclo_count"] + 1) / (group["H2_cyclo_count"] + 1)) *
+        np.log2(reads_phased)
+    )
+
+    group["test_statistic"] = np.where(
+        (proportion_phased < 0.1) | (reads_phased < 10),
+        0,
+        stat
+    )
+
     return group
 
 def Cyclo_Expression_Outlier_GOE_minor_isoforms(group):
@@ -509,9 +680,16 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
             NMD_rare_steady_state_transcript_hap1,
             NMD_rare_steady_state_transcript_hap2,
         ]:
+            # # Create bins and calculate aggregated values
+            # filtered_data["bin"] = filtered_data["isoform_noncyclo_proportion"].apply(
+            #     lambda x: "Bin1_le" if x <= bin_proportion else "Bin2_g"
+            # )
+
             # Create bins and calculate aggregated values
-            filtered_data["bin"] = filtered_data["isoform_noncyclo_proportion"].apply(
-                lambda x: "Bin1_le" if x <= bin_proportion else "Bin2_g"
+            filtered_data["bin"] = np.where(
+                filtered_data["isoform_noncyclo_proportion"] <= bin_proportion,
+                "Bin1_le",
+                "Bin2_g"
             )
 
             # Choose which columns to aggregate (total vs hap1 vs hap2)
