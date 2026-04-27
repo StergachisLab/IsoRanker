@@ -20,6 +20,7 @@ from .test_statistic import (
     NMD_rare_steady_state_transcript_hap2,
     Noncyclo_Allelic_Imbalance,
     Cyclo_Allelic_Imbalance,
+    process_test,
     process_hypothesis_test,
     Noncyclo_Expression_Outlier_GOE_minor_isoforms,
     Cyclo_Expression_Outlier_GOE_minor_isoforms
