@@ -497,9 +497,6 @@ def Noncyclo_Expression_Outlier_GOE_minor_isoforms(group):
     group['test_statistic'] = results
     return group
 
-# Wrapping because "process_test" might be a better name
-def process_test(*args, **kwargs):
-    return process_hypothesis_test(*args, **kwargs)
 
 def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_group_col=None, gene_level=True, bin_proportion=0.01, filter_before_ranking=True, filter_count_threshold=10):
     """
@@ -889,3 +886,6 @@ def process_hypothesis_test(filtered_data, group_col, test_statistic_func, gene_
     return ranked_data
 
 
+# Wrapping because "process_test" might be a better name
+def process_test(*args, **kwargs):
+    return process_hypothesis_test(*args, **kwargs)
