@@ -14,7 +14,7 @@ from IsoRanker import (
 )
 
 
-def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col="associated_gene"):
+def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col="associated_gene", count_filter=10):
     """
     Performs principal component analysis (PCA) on transcript expression data and generates a PCA plot.
 
@@ -42,7 +42,8 @@ def process_and_plot_pca(df, output_pdf="pca_plot.pdf", grouping_col="associated
     - The plot includes variance explained on axis labels and is saved as a PDF.
     """
 
-    df_filtered = filter_based_on_counts(df, count_threshold=10, group_col=grouping_col)
+    df_filtered = filter_based_on_counts(df, count_threshold=count_filter, group_col=grouping_col)
+    
 
     # Group by Sample and grouping_col and sum TPM values
     grouped_df = df_filtered.groupby(["Sample", grouping_col])[["Cyclo_TPM", "Noncyclo_TPM"]].sum().reset_index()
