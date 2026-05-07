@@ -394,15 +394,19 @@ def Noncyclo_Allelic_Imbalance(group):
         (reads_phased + group["H0_noncyclo_count"] + 1)
     )
 
-    stat = np.abs(
-        np.log2((group["H1_noncyclo_count"] + 1) / (group["H2_noncyclo_count"] + 1)) *
-        np.log2(reads_phased)
-    )
+    # validity mask
+    valid = (proportion_phased >= 0.1) & (reads_phased >= 10)
 
-    group["test_statistic"] = np.where(
-        (proportion_phased < 0.1) | (reads_phased < 10),
-        0,
-        stat
+    # initialize output
+    group["test_statistic"] = 0.0
+
+    # compute only where valid
+    group.loc[valid, "test_statistic"] = np.abs(
+        np.log2(
+            (group.loc[valid, "H1_noncyclo_count"] + 1) /
+            (group.loc[valid, "H2_noncyclo_count"] + 1)
+        ) *
+        np.log2(reads_phased[valid])
     )
 
     return group
@@ -448,18 +452,23 @@ def Cyclo_Allelic_Imbalance(group):
         (reads_phased + group["H0_cyclo_count"] + 1)
     )
 
-    stat = np.abs(
-        np.log2((group["H1_cyclo_count"] + 1) / (group["H2_cyclo_count"] + 1)) *
-        np.log2(reads_phased)
-    )
+    # validity mask
+    valid = (proportion_phased >= 0.1) & (reads_phased >= 10)
 
-    group["test_statistic"] = np.where(
-        (proportion_phased < 0.1) | (reads_phased < 10),
-        0,
-        stat
+    # initialize output
+    group["test_statistic"] = 0.0
+
+    # compute only where valid
+    group.loc[valid, "test_statistic"] = np.abs(
+        np.log2(
+            (group.loc[valid, "H1_cyclo_count"] + 1) /
+            (group.loc[valid, "H2_cyclo_count"] + 1)
+        ) *
+        np.log2(reads_phased[valid])
     )
 
     return group
+    
 
 def Cyclo_Expression_Outlier_GOE_minor_isoforms(group):
     """Calculate test statistic for Cyclo Expression Outlier - Gain of Expression (GOE) only using minor isoforms for the gene."""
