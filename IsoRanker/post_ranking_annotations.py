@@ -676,6 +676,22 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
     import pandas as pd
     import pysam
 
+    ################################################
+    # Helper
+    ################################################
+
+    def is_gzip_file(path):
+        """
+        Detect whether a file is truly gzip-compressed
+        using magic bytes rather than filename suffix.
+        """
+        with open(path, "rb") as f:
+            return f.read(2) == b"\x1f\x8b"
+
+    ################################################
+    # Validate inputs
+    ################################################
+
     if not os.path.isfile(pair_list_path):
         raise FileNotFoundError(f"Pair list file not found: {pair_list_path}")
 
@@ -688,19 +704,24 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
     os.makedirs(output_dir, exist_ok=True)
 
     ################################################
-    # Parse GTF into gene -> coordinates
+    # Parse GTF into gene coordinates
     ################################################
 
     gene_coords = {}
 
     with open(gtf_path, "r") as gtf:
+
         for line in gtf:
+
             if line.startswith("#"):
                 continue
 
             fields = line.strip().split("\t")
 
-            if len(fields) < 9 or fields[2] != "gene":
+            if len(fields) < 9:
+                continue
+
+            if fields[2] != "gene":
                 continue
 
             chrom = fields[0]
@@ -708,21 +729,26 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
             end = int(fields[4])
             attr = fields[8]
 
-            if 'gene_name "' in attr:
-                gene_name = attr.split('gene_name "')[1].split('"')[0]
+            if 'gene_name "' not in attr:
+                continue
 
-                if gene_name not in gene_coords:
-                    gene_coords[gene_name] = (chrom, start, end)
+            gene_name = attr.split('gene_name "')[1].split('"')[0]
+
+            if gene_name not in gene_coords:
+                gene_coords[gene_name] = (chrom, start, end)
 
     ################################################
-    # Read sample / VCF table
+    # Read pair list
     ################################################
 
     df = pd.read_csv(pair_list_path, sep="\t")
-    df = df.drop_duplicates(subset=["individual", "individual_vcf"])
+
+    df = df.drop_duplicates(
+        subset=["individual", "individual_vcf"]
+    )
 
     ################################################
-    # Process each individual
+    # Process each sample
     ################################################
 
     for _, row in df.iterrows():
@@ -740,89 +766,158 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
             f"{individual}.isoranker_subsetted.vcf.gz"
         )
 
+        ################################################
+        # Validate files
+        ################################################
+
         if not os.path.isfile(gene_list_file):
+
             print(
                 f"Error: Gene list file not found for {individual}: {gene_list_file}",
                 flush=True
             )
+
             continue
 
         if not os.path.isfile(vcf_in):
+
             print(
                 f"Error: VCF file not found: {vcf_in}",
                 flush=True
             )
+
             continue
 
-        print(f"Processing individual: {individual}", flush=True)
-        print(f"Input VCF: {vcf_in}", flush=True)
+        print(
+            f"Processing individual: {individual}",
+            flush=True
+        )
+
+        print(
+            f"Input VCF: {vcf_in}",
+            flush=True
+        )
 
         ################################################
-        # Read gene list and build regions
+        # Read genes
         ################################################
 
         with open(gene_list_file) as gf:
-            genes = [g.strip() for g in gf if g.strip()]
+
+            genes = [
+                g.strip()
+                for g in gf
+                if g.strip()
+            ]
+
+        ################################################
+        # Build genomic regions
+        ################################################
 
         regions = []
 
         for gene in genes:
+
             if gene in gene_coords:
+
                 chrom, start, end = gene_coords[gene]
-                regions.append((chrom, max(0, start - flank), end + flank))
+
+                regions.append((
+                    chrom,
+                    max(0, start - flank),
+                    end + flank
+                ))
+
             else:
-                print(f"Warning: {gene} not found in GTF.", flush=True)
+
+                print(
+                    f"Warning: {gene} not found in GTF.",
+                    flush=True
+                )
 
         if not regions:
-            print(f"No valid regions for {individual}. Skipping.", flush=True)
+
+            print(
+                f"No valid regions for {individual}. Skipping.",
+                flush=True
+            )
+
             continue
+
+        ################################################
+        # Initialize cleanup variables
+        ################################################
 
         temp_dir = None
         vcf_infile = None
         vcf_outfile = None
 
         try:
+
             ################################################
-            # Decide whether original VCF is usable directly
+            # Check whether original VCF is usable directly
             ################################################
 
-            has_original_index = (
+            has_index = (
                 os.path.exists(vcf_in + ".tbi")
                 or os.path.exists(vcf_in + ".csi")
             )
 
             use_original = False
 
-            if has_original_index:
-                try:
-                    test_vcf = pysam.VariantFile(vcf_in, "r")
-                    test_region = regions[0]
-                    list(test_vcf.fetch(test_region[0], test_region[1], test_region[2]))
-                    test_vcf.close()
-                    use_original = True
-                    print("Using original indexed VCF.", flush=True)
+            if has_index:
 
-                except Exception as e:
+                try:
+
+                    test_vcf = pysam.VariantFile(vcf_in, "r")
+
+                    chrom, start, end = regions[0]
+
+                    list(
+                        test_vcf.fetch(
+                            chrom,
+                            start,
+                            end
+                        )
+                    )
+
+                    test_vcf.close()
+
+                    use_original = True
+
                     print(
-                        f"Existing index is not usable or VCF is not bgzip-compressed: {e}",
+                        "Using original indexed VCF.",
                         flush=True
                     )
+
+                except Exception as e:
+
+                    print(
+                        f"Original VCF/index unusable: {e}",
+                        flush=True
+                    )
+
                     use_original = False
 
             ################################################
-            # If no usable index, create temporary bgzip VCF
+            # Create temporary bgzip VCF if needed
             ################################################
 
             if use_original:
+
                 indexed_vcf = vcf_in
 
             else:
+
                 print(
-                    "No usable VCF index found. Creating temporary bgzip-compressed indexed copy.",
+                    "Creating temporary bgzip-compressed indexed VCF.",
                     flush=True
                 )
 
-                base_tmp = os.environ.get("TMPDIR", tempfile.gettempdir())
+                base_tmp = os.environ.get(
+                    "TMPDIR",
+                    tempfile.gettempdir()
+                )
 
                 temp_dir = tempfile.mkdtemp(
                     prefix="isoranker_",
@@ -835,33 +930,65 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
                 )
 
                 if not local_vcf_bgz.endswith(".gz"):
-                    local_vcf_bgz = local_vcf_bgz + ".gz"
+                    local_vcf_bgz += ".gz"
 
-                # Rewrite as proper bgzip, even if original is normal gzip
+                ################################################
+                # Rewrite as proper BGZF
+                ################################################
+
                 with pysam.BGZFile(local_vcf_bgz, "wb") as out_f:
-                    if vcf_in.endswith(".gz"):
+
+                    if is_gzip_file(vcf_in):
+
+                        print(
+                            "Detected true gzip-compressed VCF.",
+                            flush=True
+                        )
+
                         with gzip.open(vcf_in, "rb") as in_f:
                             shutil.copyfileobj(in_f, out_f)
+
                     else:
+
+                        print(
+                            "Detected plain-text VCF with misleading extension.",
+                            flush=True
+                        )
+
                         with open(vcf_in, "rb") as in_f:
                             shutil.copyfileobj(in_f, out_f)
+
+                ################################################
+                # Create tabix index
+                ################################################
 
                 pysam.tabix_index(
                     local_vcf_bgz,
                     preset="vcf",
-                    force=True
+                    force=True,
+                    keep_original=True
                 )
 
                 indexed_vcf = local_vcf_bgz
 
-                print(f"Temporary bgzip VCF: {indexed_vcf}", flush=True)
-                print(f"Temporary index: {indexed_vcf}.tbi", flush=True)
+                print(
+                    f"Temporary BGZF VCF: {indexed_vcf}",
+                    flush=True
+                )
+
+                print(
+                    f"Temporary index: {indexed_vcf}.tbi",
+                    flush=True
+                )
 
             ################################################
             # Open indexed VCF
             ################################################
 
-            vcf_infile = pysam.VariantFile(indexed_vcf, "r")
+            vcf_infile = pysam.VariantFile(
+                indexed_vcf,
+                "r"
+            )
 
             vcf_outfile = pysam.VariantFile(
                 vcf_out,
@@ -883,9 +1010,14 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
             csq_fields = csq_format_str.strip().split("|")
 
             try:
+
                 max_af_index = csq_fields.index("MAX_AF")
+
             except ValueError:
-                raise ValueError("MAX_AF not found in CSQ field format.")
+
+                raise ValueError(
+                    "MAX_AF not found in CSQ field format."
+                )
 
             ################################################
             # Fetch records
@@ -896,25 +1028,39 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
             for chrom, start, end in regions:
 
                 try:
-                    for record in vcf_infile.fetch(chrom, start, end):
+
+                    for record in vcf_infile.fetch(
+                        chrom,
+                        start,
+                        end
+                    ):
+
                         if passes_max_af_filter(
                             record,
                             max_af_index=max_af_index,
                             max_af_cutoff=max_af_cutoff
                         ):
+
                             filtered_records.append(record)
 
-                except ValueError as e:
+                except Exception as e:
+
                     print(
-                        f"Warning: Region {chrom}:{start}-{end} not found in VCF: {e}",
+                        f"Warning: Region {chrom}:{start}-{end} failed: {e}",
                         flush=True
                     )
 
             ################################################
-            # Sort and write output VCF
+            # Sort records
             ################################################
 
-            filtered_records.sort(key=lambda r: (r.contig, r.pos))
+            filtered_records.sort(
+                key=lambda r: (r.contig, r.pos)
+            )
+
+            ################################################
+            # Write records
+            ################################################
 
             for record in filtered_records:
                 vcf_outfile.write(record)
@@ -936,16 +1082,40 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
                 keep_original=True
             )
 
-            print(f"Finished: {vcf_out}", flush=True)
-            print(f"Indexed output: {vcf_out}.tbi", flush=True)
-            print("-----------------------------", flush=True)
+            print(
+                f"Finished: {vcf_out}",
+                flush=True
+            )
+
+            print(
+                f"Indexed output: {vcf_out}.tbi",
+                flush=True
+            )
+
+            print(
+                "-----------------------------",
+                flush=True
+            )
+
+        ################################################
+        # Cleanup
+        ################################################
 
         finally:
+
             if vcf_outfile is not None:
                 vcf_outfile.close()
 
             if vcf_infile is not None:
                 vcf_infile.close()
 
-            if temp_dir is not None and os.path.isdir(temp_dir):
-                shutil.rmtree(temp_dir)
+            if temp_dir is not None:
+
+                if os.path.isdir(temp_dir):
+
+                    shutil.rmtree(temp_dir)
+
+                    print(
+                        f"Removed temp directory: {temp_dir}",
+                        flush=True
+                    )
