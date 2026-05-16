@@ -53,6 +53,11 @@ def main():
     parser.add_argument("--reference_fasta_path", required=True, help="Path to the hg38 reference fasta path.")
     parser.add_argument("--final_output_dir", required=True, help="Directory to save the output files.")
     parser.add_argument("--gtf_path_input", required=True, help="Path to gencode reference file.")
+    parser.add_argument(
+        "--only_omim_with_phenotype",
+        action="store_true",
+        help="If set, only keep OMIM genes with at least one phenotype annotation."
+    )
 
 
     args = parser.parse_args()
@@ -69,6 +74,7 @@ def main():
     reference_fasta_path = args.reference_fasta_path
     final_output_dir = args.final_output_dir
     gtf_path_input = args.gtf_path_input
+    only_omim_with_phenotype = args.only_omim_with_phenotype
 
     output_dir = "."
 
@@ -132,6 +138,52 @@ def main():
         ).drop(columns=["isoform"])
 
         long_format_annotated.to_csv(os.path.join(output_dir, "long_format_annotated.tsv.gz"), index=False, compression = "gzip", sep="\t")
+
+        ######################## Optional filter for OMIM genes with phenotype ########################
+
+        if only_omim_with_phenotype:
+            omim_gene_set = set(
+                genemap.loc[
+                    genemap["Approved Gene Symbol"].notna()
+                    & genemap["Phenotypes"].notna()
+                    & (genemap["Phenotypes"].astype(str).str.strip() != ""),
+                    "Approved Gene Symbol"
+                ]
+                .astype(str)
+                .str.strip()
+            )
+
+            long_format_annotated["associated_gene"] = (
+                long_format_annotated["associated_gene"]
+                .astype(str)
+                .str.strip()
+            )
+
+            def keep_gene_with_omim_phenotype(g):
+                if not g or g == "nan":
+                    return False
+                return str(g).strip() in omim_gene_set
+
+            before_n = len(long_format_annotated)
+
+            mask = long_format_annotated["associated_gene"].apply(
+                keep_gene_with_omim_phenotype
+            )
+
+            long_format_annotated = long_format_annotated[mask].copy()
+
+            after_n = len(long_format_annotated)
+
+            print(
+                f"Filtered to OMIM genes with phenotype: {before_n:,} -> {after_n:,}",
+                flush=True
+            )
+
+        else:
+            print(
+                "Using all genes for ranking; no OMIM phenotype filter applied.",
+                flush=True
+            )
 
         ################################################
         # Create the gene-level expression matrix
@@ -762,6 +814,43 @@ def main():
 
 
     print("File organization complete!", flush=True)
+
+
+    ###################################
+    # Organize output files
+    ###################################
+    def unzip_gz_files_recursively(directory, output_dir):
+        """
+        Recursively unzips all .gz files from `directory` and its subdirectories, 
+        preserving the folder structure in `output_dir`.
+        
+        Parameters:
+        - directory (str): Root directory to search for .gz files.
+        - output_dir (str): Destination directory where extracted files will be saved.
+        """
+        for root, _, files in os.walk(directory):  # Recursively walk through directories
+            for file in files:
+                if file.endswith(".gz"):
+                    gz_path = os.path.join(root, file)
+                    
+                    # Preserve subdirectory structure in the output directory
+                    relative_path = os.path.relpath(root, directory)  # Get relative path
+                    target_dir = os.path.join(output_dir, relative_path)
+                    os.makedirs(target_dir, exist_ok=True)  # Create subdirectories if needed
+                    
+                    output_path = os.path.join(target_dir, file[:-3])  # Remove .gz extension
+                    
+                    # Extract file
+                    with gzip.open(gz_path, 'rb') as gz_file, open(output_path, 'wb') as out_file:
+                        shutil.copyfileobj(gz_file, out_file)
+
+                    print(f"Extracted: {gz_path} -> {output_path}")
+
+    # Example usage
+    unzip_gz_files_recursively(
+        ".", 
+        "Output_Unzipped"
+    )
 
 
     ###################################
