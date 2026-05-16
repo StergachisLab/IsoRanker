@@ -165,8 +165,7 @@ def main():
             ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
             ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
             ("NMD_rare_steady_state_transcript", NMD_rare_steady_state_transcript),
-            ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance),
-            ("Cyclo_Allelic_Imbalance", Cyclo_Allelic_Imbalance)
+            ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance)
         ]
 
         # Store full results to generate lookup table
@@ -225,8 +224,7 @@ def main():
             ("Noncyclo_LOE", Noncyclo_Expression_Outlier_LOE),
             ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
             ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
-            ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance),
-            ("Cyclo_Allelic_Imbalance", Cyclo_Allelic_Imbalance)
+            ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance)
         ]
 
         #Isoform level
@@ -289,13 +287,35 @@ def main():
         merge_tsvs_by_keyword(output_dir, keyword, output_tsv)
 
 
-
     if resume_from_phenotype:
         sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
         sample_info = pd.read_csv(sample_info_path, compression="gzip", sep="\t")
         classification_data = pd.read_csv(classification_path, sep="\t")
         genemap = pd.read_csv(genemap_path, sep="\t", skiprows=3)
         genemap = genemap[genemap["Approved Gene Symbol"].notnull()]
+
+        long_format_annotated = pd.read_csv(
+            "long_format_annotated.tsv.gz",
+            sep="\t",
+            compression="gzip"
+        )
+
+        full_ranked_gene_data = []
+        for test_name in [
+            "NMD",
+            "Noncyclo_LOE",
+            "Noncyclo_GOE",
+            "Cyclo_GOE",
+            "NMD_rare_steady_state_transcript",
+            "Noncyclo_Allelic_Imbalance",
+            "Cyclo_Allelic_Imbalance",
+        ]:
+            path = f"{test_name}_gene_full_ranked_data.tsv.gz"
+            if os.path.exists(path):
+                df = pd.read_csv(path, sep="\t", compression="gzip")
+                full_ranked_gene_data.append((test_name, df))
+            else:
+                print(f"Warning: missing {path}; skipping lookup-table ranks for {test_name}", flush=True)
     
     ################################################
     # Add patient phenotype information
