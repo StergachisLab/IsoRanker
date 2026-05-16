@@ -545,119 +545,417 @@ def passes_max_af_filter(record, max_af_index, max_af_cutoff):
             continue
     return False
 
+# def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutoff=0.01,
+#                          gtf_path="/mmfs1/gscratch/stergachislab/asedeno/data/reference_files/gencode.v47.annotation.gtf",
+#                          output_dir="subsetted_vcfs"):
+#     """
+#     Filters multiple VEP-annotated VCF files based on gene regions and allele frequency thresholds.
+#     Outputs a subsetted and compressed VCF file for each individual.
+
+#     For each row in the pair list TSV, the function:
+#     - Locates the individual's VCF file and gene list
+#     - Uses a GTF annotation file to find coordinates for genes (with optional flanking region)
+#     - Filters variants in the VCF to retain only those within gene regions and passing the MAX_AF threshold
+#     - Writes the filtered variants to a compressed VCF file in the output directory
+
+#     Parameters:
+#     - pair_list_path (str): Path to a TSV file with at least two columns: 'individual' and 'individual_vcf'.
+#     - gene_list_dir (str): Directory containing gene list files named as <individual>_gene_list.txt.
+#     - flank (int): Number of base pairs to add upstream and downstream of gene coordinates (default: 1000).
+#     - max_af_cutoff (float): Maximum allele frequency for a variant to pass filtering (default: 0.01).
+#     - gtf_path (str): Path to a GTF file used to extract gene coordinates.
+#     - output_dir (str): Directory where the filtered VCF files will be written (default: "subsetted_vcfs").
+
+#     Returns:
+#     - None: Writes filtered VCF files and tabix indexes to the output directory.
+#     """
+    
+#     if not os.path.isfile(pair_list_path):
+#         raise FileNotFoundError(f"Pair list file not found: {pair_list_path}")
+#     if not os.path.isfile(gtf_path):
+#         raise FileNotFoundError(f"GTF file not found: {gtf_path}")
+#     if not os.path.isdir(gene_list_dir):
+#         raise NotADirectoryError(f"Gene list directory not found: {gene_list_dir}")
+
+#     os.makedirs(output_dir, exist_ok=True)
+
+#     # Parse GTF into gene -> (chrom, start, end)
+#     gene_coords = {}
+#     with open(gtf_path, 'r') as gtf:
+#         for line in gtf:
+#             if line.startswith('#'):
+#                 continue
+#             fields = line.strip().split('\t')
+#             if len(fields) < 9 or fields[2] != 'gene':
+#                 continue
+#             chrom, start, end, attr = fields[0], int(fields[3]), int(fields[4]), fields[8]
+#             if 'gene_name' in attr:
+#                 gene_name = attr.split('gene_name "')[1].split('"')[0]
+#                 if gene_name not in gene_coords:
+#                     gene_coords[gene_name] = (chrom, start, end)
+
+#     df = pd.read_csv(pair_list_path, sep="\t")
+#     df = df.drop_duplicates(subset=["individual", "individual_vcf"])
+
+#     for idx, row in df.iterrows():
+#         individual = row["individual"]
+#         gene_list_file = os.path.join(gene_list_dir, f"{individual}_gene_list.txt")
+#         vcf_in = row["individual_vcf"]
+#         vcf_out = os.path.join(output_dir, f"{individual}.isoranker_subsetted.vcf.gz")
+
+#         if not os.path.isfile(gene_list_file):
+#             print(f"  Error: Gene list file not found for individual {individual}: {gene_list_file}. Skipping.")
+#             continue
+#         if not os.path.isfile(vcf_in):
+#             print(f"  Error: VCF file not found: {vcf_in}. Skipping.")
+#             continue
+
+#         print(f"Processing individual: {individual}\n  Gene list: {gene_list_file}\n  Input VCF: {vcf_in}\n  Output VCF: {vcf_out}\n  Flank: {flank} bp")
+
+#         with open(gene_list_file) as gf:
+#             genes = [g.strip() for g in gf if g.strip()]
+
+#         regions = []
+#         for gene in genes:
+#             if gene in gene_coords:
+#                 chrom, start, end = gene_coords[gene]
+#                 regions.append((chrom, max(0, start - flank), end + flank))
+#             else:
+#                 print(f"  Warning: {gene} not found in GTF.")
+
+#         if not regions:
+#             print(f"  No valid regions for {vcf_out}. Skipping.")
+#             continue
+
+#         vcf_infile = pysam.VariantFile(vcf_in, "r")  # handles .vcf or .vcf.gz
+#         vcf_outfile = pysam.VariantFile(vcf_out, "wz", header=vcf_infile.header)  # write compressed
+
+#         # Get CSQ fields
+#         csq_desc = vcf_infile.header.info["CSQ"].description
+#         csq_format_str = csq_desc.split("Format: ")[1]
+#         csq_fields = csq_format_str.strip().split("|")
+#         try:
+#             max_af_index = csq_fields.index("MAX_AF")
+#         except ValueError:
+#             raise ValueError("MAX_AF not found in CSQ field format.")
+
+#         filtered_records = []
+#         for chrom, start, end in regions:
+#             try:
+#                 for record in vcf_infile.fetch(chrom, start, end):
+#                     if passes_max_af_filter(record, max_af_index=max_af_index, max_af_cutoff=max_af_cutoff):
+#                         filtered_records.append(record)
+#             except ValueError as e:
+#                 print(f"  Warning: Region {chrom}:{start}-{end} not found in VCF: {e}")
+
+#         filtered_records.sort(key=lambda r: (r.contig, r.pos))
+#         for record in filtered_records:
+#             vcf_outfile.write(record)
+
+#         vcf_outfile.close()
+
+#         try:
+#             pysam.tabix_index(vcf_out, preset="vcf", force=True)
+#             print(f"Indexed: {vcf_out}.tbi")
+#         except Exception as e:
+#             print(f"  Error indexing {vcf_out}: {e}")
+
+#         print(f"Finished: {vcf_out}\n-----------------------------")
+
+
+
 def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutoff=0.01,
                          gtf_path="/mmfs1/gscratch/stergachislab/asedeno/data/reference_files/gencode.v47.annotation.gtf",
                          output_dir="subsetted_vcfs"):
-    """
-    Filters multiple VEP-annotated VCF files based on gene regions and allele frequency thresholds.
-    Outputs a subsetted and compressed VCF file for each individual.
 
-    For each row in the pair list TSV, the function:
-    - Locates the individual's VCF file and gene list
-    - Uses a GTF annotation file to find coordinates for genes (with optional flanking region)
-    - Filters variants in the VCF to retain only those within gene regions and passing the MAX_AF threshold
-    - Writes the filtered variants to a compressed VCF file in the output directory
+    import tempfile
+    import shutil
 
-    Parameters:
-    - pair_list_path (str): Path to a TSV file with at least two columns: 'individual' and 'individual_vcf'.
-    - gene_list_dir (str): Directory containing gene list files named as <individual>_gene_list.txt.
-    - flank (int): Number of base pairs to add upstream and downstream of gene coordinates (default: 1000).
-    - max_af_cutoff (float): Maximum allele frequency for a variant to pass filtering (default: 0.01).
-    - gtf_path (str): Path to a GTF file used to extract gene coordinates.
-    - output_dir (str): Directory where the filtered VCF files will be written (default: "subsetted_vcfs").
-
-    Returns:
-    - None: Writes filtered VCF files and tabix indexes to the output directory.
-    """
-    
     if not os.path.isfile(pair_list_path):
         raise FileNotFoundError(f"Pair list file not found: {pair_list_path}")
+
     if not os.path.isfile(gtf_path):
         raise FileNotFoundError(f"GTF file not found: {gtf_path}")
+
     if not os.path.isdir(gene_list_dir):
         raise NotADirectoryError(f"Gene list directory not found: {gene_list_dir}")
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Parse GTF into gene -> (chrom, start, end)
+    ########################################################
+    # Parse GTF into gene coordinates
+    ########################################################
+
     gene_coords = {}
+
     with open(gtf_path, 'r') as gtf:
         for line in gtf:
             if line.startswith('#'):
                 continue
+
             fields = line.strip().split('\t')
+
             if len(fields) < 9 or fields[2] != 'gene':
                 continue
-            chrom, start, end, attr = fields[0], int(fields[3]), int(fields[4]), fields[8]
+
+            chrom = fields[0]
+            start = int(fields[3])
+            end = int(fields[4])
+            attr = fields[8]
+
             if 'gene_name' in attr:
                 gene_name = attr.split('gene_name "')[1].split('"')[0]
+
                 if gene_name not in gene_coords:
                     gene_coords[gene_name] = (chrom, start, end)
+
+    ########################################################
+    # Read sample / VCF pairs
+    ########################################################
 
     df = pd.read_csv(pair_list_path, sep="\t")
     df = df.drop_duplicates(subset=["individual", "individual_vcf"])
 
+    ########################################################
+    # Process each sample
+    ########################################################
+
     for idx, row in df.iterrows():
+
         individual = row["individual"]
-        gene_list_file = os.path.join(gene_list_dir, f"{individual}_gene_list.txt")
+
+        gene_list_file = os.path.join(
+            gene_list_dir,
+            f"{individual}_gene_list.txt"
+        )
+
         vcf_in = row["individual_vcf"]
-        vcf_out = os.path.join(output_dir, f"{individual}.isoranker_subsetted.vcf.gz")
+
+        vcf_out = os.path.join(
+            output_dir,
+            f"{individual}.isoranker_subsetted.vcf.gz"
+        )
+
+        ####################################################
+        # Validate files
+        ####################################################
 
         if not os.path.isfile(gene_list_file):
-            print(f"  Error: Gene list file not found for individual {individual}: {gene_list_file}. Skipping.")
-            continue
-        if not os.path.isfile(vcf_in):
-            print(f"  Error: VCF file not found: {vcf_in}. Skipping.")
+            print(
+                f"Error: Gene list file not found for {individual}: {gene_list_file}",
+                flush=True
+            )
             continue
 
-        print(f"Processing individual: {individual}\n  Gene list: {gene_list_file}\n  Input VCF: {vcf_in}\n  Output VCF: {vcf_out}\n  Flank: {flank} bp")
+        if not os.path.isfile(vcf_in):
+            print(
+                f"Error: VCF file not found: {vcf_in}",
+                flush=True
+            )
+            continue
+
+        print(
+            f"\nProcessing individual: {individual}",
+            flush=True
+        )
+
+        print(
+            f"Input VCF: {vcf_in}",
+            flush=True
+        )
+
+        ####################################################
+        # Read genes
+        ####################################################
 
         with open(gene_list_file) as gf:
             genes = [g.strip() for g in gf if g.strip()]
 
         regions = []
+
         for gene in genes:
+
             if gene in gene_coords:
+
                 chrom, start, end = gene_coords[gene]
-                regions.append((chrom, max(0, start - flank), end + flank))
+
+                regions.append((
+                    chrom,
+                    max(0, start - flank),
+                    end + flank
+                ))
+
             else:
-                print(f"  Warning: {gene} not found in GTF.")
+                print(
+                    f"Warning: {gene} not found in GTF.",
+                    flush=True
+                )
 
         if not regions:
-            print(f"  No valid regions for {vcf_out}. Skipping.")
+            print(
+                f"No valid regions for {individual}. Skipping.",
+                flush=True
+            )
             continue
 
-        vcf_infile = pysam.VariantFile(vcf_in, "r")  # handles .vcf or .vcf.gz
-        vcf_outfile = pysam.VariantFile(vcf_out, "wz", header=vcf_infile.header)  # write compressed
+        ####################################################
+        # Handle indexing
+        ####################################################
 
-        # Get CSQ fields
+        original_index = vcf_in + ".tbi"
+
+        use_temp_copy = not os.path.exists(original_index)
+
+        temp_dir = None
+
+        if use_temp_copy:
+
+            print(
+                "No VCF index found. Creating temporary indexed copy.",
+                flush=True
+            )
+
+            base_tmp = os.environ.get("TMPDIR", tempfile.gettempdir())
+
+            temp_dir = tempfile.mkdtemp(
+                prefix="isoranker_",
+                dir=base_tmp
+            )
+
+            local_vcf = os.path.join(
+                temp_dir,
+                os.path.basename(vcf_in)
+            )
+
+            shutil.copy2(vcf_in, local_vcf)
+
+            print(
+                f"Copied VCF to temporary directory: {local_vcf}",
+                flush=True
+            )
+
+            pysam.tabix_index(
+                local_vcf,
+                preset="vcf",
+                force=True
+            )
+
+            indexed_vcf = local_vcf
+
+        else:
+
+            indexed_vcf = vcf_in
+
+        ####################################################
+        # Open VCF
+        ####################################################
+
+        vcf_infile = pysam.VariantFile(indexed_vcf, "r")
+
+        vcf_outfile = pysam.VariantFile(
+            vcf_out,
+            "wz",
+            header=vcf_infile.header
+        )
+
+        ####################################################
+        # Parse CSQ fields
+        ####################################################
+
         csq_desc = vcf_infile.header.info["CSQ"].description
+
         csq_format_str = csq_desc.split("Format: ")[1]
+
         csq_fields = csq_format_str.strip().split("|")
+
         try:
             max_af_index = csq_fields.index("MAX_AF")
+
         except ValueError:
-            raise ValueError("MAX_AF not found in CSQ field format.")
+            raise ValueError(
+                "MAX_AF not found in CSQ field format."
+            )
+
+        ####################################################
+        # Fetch records
+        ####################################################
 
         filtered_records = []
-        for chrom, start, end in regions:
-            try:
-                for record in vcf_infile.fetch(chrom, start, end):
-                    if passes_max_af_filter(record, max_af_index=max_af_index, max_af_cutoff=max_af_cutoff):
-                        filtered_records.append(record)
-            except ValueError as e:
-                print(f"  Warning: Region {chrom}:{start}-{end} not found in VCF: {e}")
 
-        filtered_records.sort(key=lambda r: (r.contig, r.pos))
+        for chrom, start, end in regions:
+
+            try:
+
+                for record in vcf_infile.fetch(chrom, start, end):
+
+                    if passes_max_af_filter(
+                        record,
+                        max_af_index=max_af_index,
+                        max_af_cutoff=max_af_cutoff
+                    ):
+
+                        filtered_records.append(record)
+
+            except ValueError as e:
+
+                print(
+                    f"Warning: Region {chrom}:{start}-{end} not found in VCF: {e}",
+                    flush=True
+                )
+
+        ####################################################
+        # Write output
+        ####################################################
+
+        filtered_records.sort(
+            key=lambda r: (r.contig, r.pos)
+        )
+
         for record in filtered_records:
             vcf_outfile.write(record)
 
         vcf_outfile.close()
 
-        try:
-            pysam.tabix_index(vcf_out, preset="vcf", force=True)
-            print(f"Indexed: {vcf_out}.tbi")
-        except Exception as e:
-            print(f"  Error indexing {vcf_out}: {e}")
+        ####################################################
+        # Index output VCF
+        ####################################################
 
-        print(f"Finished: {vcf_out}\n-----------------------------")
+        try:
+
+            pysam.tabix_index(
+                vcf_out,
+                preset="vcf",
+                force=True
+            )
+
+            print(
+                f"Indexed output: {vcf_out}.tbi",
+                flush=True
+            )
+
+        except Exception as e:
+
+            print(
+                f"Error indexing output VCF {vcf_out}: {e}",
+                flush=True
+            )
+
+        ####################################################
+        # Cleanup
+        ####################################################
+
+        if temp_dir is not None:
+
+            shutil.rmtree(temp_dir)
+
+            print(
+                f"Removed temporary directory: {temp_dir}",
+                flush=True
+            )
+
+        print(
+            f"Finished: {vcf_out}",
+            flush=True
+        )
+
+        print("-----------------------------", flush=True)
