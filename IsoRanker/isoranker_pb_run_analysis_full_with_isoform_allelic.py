@@ -255,7 +255,7 @@ def main():
 
             ranked_data = split_fusion_genes(ranked_data)
 
-            filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
+            filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 100]
 
             # Save the results to a tsv file
             output_file = os.path.join(output_dir, f"{test_name}_gene_top_ranked_data.tsv.gz")
@@ -307,7 +307,7 @@ def main():
 
             ranked_data = split_fusion_genes(ranked_data)
 
-            filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 25]
+            filtered_ranked_data = ranked_data[ranked_data["rank_top_99_5_percentile"] <= 100]
 
             # Save the results to a tsv file
             output_file = os.path.join(output_dir, f"{test_name}_isoform_top_ranked_data.tsv.gz")
@@ -905,6 +905,21 @@ def main():
         )
         .reset_index()
     )
+
+    all_comparisons, all_comparisons_long = process_phenotype_data(
+        hpo_file_path,
+        genemap_path,
+        probands_file_path
+    )
+
+    # Add sample phenotype information.
+    summary = summary.merge(
+        all_comparisons_long,
+        left_on=["Sample", "associated_gene"],
+        right_on=["Sample", "Approved Gene Symbol"],
+        how="left"
+    ).drop(columns=["Approved Gene Symbol"], errors="ignore")
+
 
     # Save output
     outf = "sample_gene_hits_summary.tsv"
