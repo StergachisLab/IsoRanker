@@ -7,6 +7,7 @@ import os
 import seaborn as sns
 import shutil
 import argparse
+import gzip
 
 from IsoRanker import (
     filter_based_on_counts,
