@@ -45,3 +45,10 @@ from .qc import(
     analyze_isoforms,
     process_pileup
 )
+from .batch_correction import (
+    clean_covariate_name,
+    parse_covariate_metadata,
+    remove_covariate_effects_preserve_variables,
+    replace_original_with_corrected_tpm_and_scale_counts,
+    correct_tpm_by_metadata_covariates_with_pca,
+)

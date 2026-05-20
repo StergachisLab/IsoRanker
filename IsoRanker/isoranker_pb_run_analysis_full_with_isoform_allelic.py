@@ -36,7 +36,8 @@ from IsoRanker import (
     split_fusion_genes,
     write_sample_gene_lists,
     passes_max_af_filter,
-    filter_multiple_vcfs
+    filter_multiple_vcfs,
+    correct_tpm_by_metadata_covariates_with_pca
 )
 
 def main():
@@ -59,6 +60,12 @@ def main():
         action="store_true",
         help="If set, only keep OMIM genes with at least one phenotype annotation."
     )
+    parser.add_argument(
+        "--covariate_metadata_path",
+        required=False,
+        default=None,
+        help="Optional metadata file for batch correction covariates."
+    )
 
 
     args = parser.parse_args()
@@ -76,6 +83,7 @@ def main():
     final_output_dir = args.final_output_dir
     gtf_path_input = args.gtf_path_input
     only_omim_with_phenotype = args.only_omim_with_phenotype
+    covariate_metadata_path = args.covariate_metadata_path
 
     output_dir = "."
 
@@ -206,6 +214,41 @@ def main():
         gene_expr_df.to_csv("gene_expression_matrix.tsv.gz", sep="\t", compression="gzip")
 
 
+        ################################################
+        # Optional batch correction
+        ################################################
+
+        if covariate_metadata_path is not None:
+
+            print("Performing batch correction using covariate metadata", flush=True)
+
+            covariate_metadata = pd.read_csv(
+                covariate_metadata_path,
+                sep="\t"
+            )
+
+            results = correct_tpm_by_metadata_covariates_with_pca(
+                long_df=long_format_annotated,
+                metadata_df=covariate_metadata,
+                grouping_col="Isoform",
+                metadata_sample_col="Individual",
+                metadata_condition_col="Sample type",
+                preserve_cols=("Condition",),
+                tpm_filter=10,
+                output_dir="metadata_covariate_corrected_expression_pca",
+                output_suffix="_corrected",
+                cmap="viridis",
+                make_plots=True,
+                return_matrices=False,
+            )
+
+            long_format_annotated = results["corrected_long_df"]
+
+        else:
+            print(
+                "No covariate_metadata_path provided; skipping batch correction.",
+                flush=True
+            )
 
         ################################################
         # Gene level hypothesis testing
