@@ -1,5 +1,6 @@
 import os
 import re
+import gc
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,11 +9,10 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
-# ============================================================
-# Parse metadata with automatic covariate detection
-# ============================================================
-
 def clean_covariate_name(name):
+    """
+    Convert a metadata covariate name into a safe Python/Pandas column name.
+    """
     name = name.strip()
     name = re.sub(r"\s+", "_", name)
     name = re.sub(r"[^A-Za-z0-9_]", "", name)
@@ -25,26 +25,44 @@ def parse_covariate_metadata(
     condition_col="Sample type",
 ):
     """
-    Detects columns named like:
+    Parse metadata columns with automatic covariate detection.
+
+    Metadata columns should look like:
 
         CONTINUOUS: Read length N50
         CATEGORICAL: CRDR
 
-    and returns:
-        metadata_df
-        continuous_correction_cols
-        categorical_correction_cols
+    Parameters
+    ----------
+    metadata_df : pandas.DataFrame
+        Metadata dataframe with one row per sample-condition pair.
+
+    sample_col : str, default "Individual"
+        Column containing the base sample ID.
+
+    condition_col : str, default "Sample type"
+        Column containing condition labels, usually "cyclo" or "noncyclo".
+
+    Returns
+    -------
+    metadata_df : pandas.DataFrame
+        Cleaned metadata dataframe with standardized columns.
+
+    continuous_cols : list[str]
+        Automatically detected continuous covariates.
+
+    categorical_cols : list[str]
+        Automatically detected categorical covariates.
     """
 
     metadata_df = metadata_df.copy()
     metadata_df.columns = metadata_df.columns.str.strip()
 
     continuous_cols = []
-    categorical_cols = {}
+    categorical_cols = []
     rename_dict = {}
 
     for col in metadata_df.columns:
-
         if col.startswith("CONTINUOUS:"):
             clean_name = clean_covariate_name(
                 col.replace("CONTINUOUS:", "").strip()
@@ -57,14 +75,16 @@ def parse_covariate_metadata(
                 col.replace("CATEGORICAL:", "").strip()
             )
             rename_dict[col] = clean_name
-            categorical_cols[col] = clean_name
+            categorical_cols.append(clean_name)
 
     metadata_df = metadata_df.rename(columns=rename_dict)
 
-    metadata_df = metadata_df.rename(columns={
-        sample_col: "Base_Sample",
-        condition_col: "Condition",
-    })
+    metadata_df = metadata_df.rename(
+        columns={
+            sample_col: "Base_Sample",
+            condition_col: "Condition",
+        }
+    )
 
     metadata_df["Condition"] = (
         metadata_df["Condition"]
@@ -84,14 +104,8 @@ def parse_covariate_metadata(
     for col in continuous_cols:
         metadata_df[col] = pd.to_numeric(metadata_df[col], errors="coerce")
 
-    categorical_cols = list(categorical_cols.values())
-
     return metadata_df, continuous_cols, categorical_cols
 
-
-# ============================================================
-# General correction helper
-# ============================================================
 
 def remove_covariate_effects_preserve_variables(
     matrix,
@@ -101,6 +115,48 @@ def remove_covariate_effects_preserve_variables(
     continuous_correction_cols=None,
     categorical_correction_cols=None,
 ):
+    """
+    Remove continuous and categorical covariate effects while preserving selected variables.
+
+    Model:
+
+        matrix ~ preserved variables + correction covariates
+
+    Corrected matrix:
+
+        fitted preserved effects + residuals from full model
+
+    Parameters
+    ----------
+    matrix : pandas.DataFrame
+        Sample-by-feature matrix, usually log2(TPM + 1).
+        Rows must correspond to sample-condition values.
+
+    metadata : pandas.DataFrame
+        Sample-condition metadata table aligned to matrix rows.
+
+    sample_key_col : str, default "Sample_Condition"
+        Column in metadata used to align metadata rows to matrix rows.
+
+    preserve_cols : tuple/list of str, default ("Condition",)
+        Variables to preserve in the corrected matrix.
+        For IsoRanker, this is usually "Condition" so Cyclo vs Noncyclo
+        differences are not removed.
+
+    continuous_correction_cols : tuple/list of str or None
+        Continuous technical covariates to remove.
+        These are z-scored before regression.
+
+    categorical_correction_cols : tuple/list of str or None
+        Categorical technical covariates to remove.
+        These are one-hot encoded with drop_first=True.
+
+    Returns
+    -------
+    corrected_df : pandas.DataFrame
+        Matrix after removing correction covariate effects.
+    """
+
     continuous_correction_cols = list(continuous_correction_cols or [])
     categorical_correction_cols = list(categorical_correction_cols or [])
     preserve_cols = list(preserve_cols or [])
@@ -108,14 +164,13 @@ def remove_covariate_effects_preserve_variables(
     meta = metadata.set_index(sample_key_col).loc[matrix.index].copy()
 
     intercept = pd.DataFrame(
-        {"Intercept": np.ones(matrix.shape[0])},
+        {"Intercept": np.ones(matrix.shape[0], dtype=np.float32)},
         index=matrix.index,
     )
 
     keep_parts = [intercept]
     remove_parts = []
 
-    # Variables to preserve
     for col in preserve_cols:
         if col not in meta.columns:
             raise ValueError(f"Preserve column not found in metadata: {col}")
@@ -127,28 +182,25 @@ def remove_covariate_effects_preserve_variables(
                 raise ValueError(f"Preserve column has missing values: {col}")
 
             sd = x.std()
-
             if sd == 0 or pd.isna(sd):
                 raise ValueError(f"Preserve column has zero variance: {col}")
 
             keep_parts.append(
                 pd.DataFrame(
-                    {f"{col}_z": (x - x.mean()) / sd},
+                    {f"{col}_z": ((x - x.mean()) / sd).astype(np.float32)},
                     index=matrix.index,
                 )
             )
-
         else:
             keep_parts.append(
                 pd.get_dummies(
                     meta[col].astype(str),
                     prefix=col,
                     drop_first=True,
-                    dtype=float,
+                    dtype=np.float32,
                 )
             )
 
-    # Continuous covariates to remove
     for col in continuous_correction_cols:
         if col not in meta.columns:
             raise ValueError(f"Continuous correction column not found: {col}")
@@ -159,18 +211,16 @@ def remove_covariate_effects_preserve_variables(
             raise ValueError(f"Continuous correction column has missing values: {col}")
 
         sd = x.std()
-
         if sd == 0 or pd.isna(sd):
             raise ValueError(f"Continuous correction column has zero variance: {col}")
 
         remove_parts.append(
             pd.DataFrame(
-                {f"{col}_z": (x - x.mean()) / sd},
+                {f"{col}_z": ((x - x.mean()) / sd).astype(np.float32)},
                 index=matrix.index,
             )
         )
 
-    # Categorical covariates to remove
     for col in categorical_correction_cols:
         if col not in meta.columns:
             raise ValueError(f"Categorical correction column not found: {col}")
@@ -183,19 +233,20 @@ def remove_covariate_effects_preserve_variables(
                 meta[col].astype(str),
                 prefix=col,
                 drop_first=True,
-                dtype=float,
+                dtype=np.float32,
             )
         )
 
-    X_keep = pd.concat(keep_parts, axis=1)
+    X_keep = pd.concat(keep_parts, axis=1).astype(np.float32)
 
     if remove_parts:
-        X_remove = pd.concat(remove_parts, axis=1)
-        X_full = pd.concat([X_keep, X_remove], axis=1)
+        X_remove = pd.concat(remove_parts, axis=1).astype(np.float32)
+        X_full = pd.concat([X_keep, X_remove], axis=1).astype(np.float32)
+        del X_remove
     else:
         X_full = X_keep.copy()
 
-    Y = matrix.values
+    Y = matrix.values.astype(np.float32, copy=False)
 
     beta_full = np.linalg.pinv(X_full.values) @ Y
     beta_keep = np.linalg.pinv(X_keep.values) @ Y
@@ -205,16 +256,18 @@ def remove_covariate_effects_preserve_variables(
 
     corrected = fitted_keep + (Y - fitted_full)
 
-    return pd.DataFrame(
-        corrected,
+    corrected_df = pd.DataFrame(
+        corrected.astype(np.float32),
         index=matrix.index,
         columns=matrix.columns,
     )
 
+    del meta, X_keep, X_full, Y, beta_full, beta_keep
+    del fitted_full, fitted_keep, corrected
+    gc.collect()
 
-# ============================================================
-# Replace TPM and count columns
-# ============================================================
+    return corrected_df
+
 
 def replace_original_with_corrected_tpm_and_scale_counts(
     long_df,
@@ -223,6 +276,34 @@ def replace_original_with_corrected_tpm_and_scale_counts(
     cyclo_tpm_corrected_col="Cyclo_TPM_corrected",
     noncyclo_tpm_corrected_col="Noncyclo_TPM_corrected",
 ):
+    """
+    Replace original TPM/count columns with corrected values.
+
+    Original values are preserved with "_original" suffix.
+
+    Parameters
+    ----------
+    long_df : pandas.DataFrame
+        Long-format dataframe containing original and corrected TPM columns.
+
+    cyclo_tpm_col : str
+        Original Cyclo TPM column to replace.
+
+    noncyclo_tpm_col : str
+        Original Noncyclo TPM column to replace.
+
+    cyclo_tpm_corrected_col : str
+        Corrected Cyclo TPM column.
+
+    noncyclo_tpm_corrected_col : str
+        Corrected Noncyclo TPM column.
+
+    Returns
+    -------
+    long_df : pandas.DataFrame
+        Dataframe where TPM and count columns are replaced by corrected/scaled values.
+    """
+
     long_df = long_df.copy()
 
     cyclo_count_cols = [
@@ -239,55 +320,54 @@ def replace_original_with_corrected_tpm_and_scale_counts(
         "noncyclo_count",
     ]
 
-    long_df[cyclo_tpm_col + "_original"] = long_df[cyclo_tpm_col]
-    long_df[noncyclo_tpm_col + "_original"] = long_df[noncyclo_tpm_col]
-
     long_df[cyclo_tpm_col + "_original"] = pd.to_numeric(
-        long_df[cyclo_tpm_col + "_original"],
+        long_df[cyclo_tpm_col],
         errors="coerce",
     ).fillna(0)
 
     long_df[noncyclo_tpm_col + "_original"] = pd.to_numeric(
-        long_df[noncyclo_tpm_col + "_original"],
+        long_df[noncyclo_tpm_col],
         errors="coerce",
     ).fillna(0)
 
     long_df[cyclo_tpm_corrected_col] = pd.to_numeric(
         long_df[cyclo_tpm_corrected_col],
         errors="coerce",
-    )
+    ).astype(np.float32)
 
     long_df[noncyclo_tpm_corrected_col] = pd.to_numeric(
         long_df[noncyclo_tpm_corrected_col],
         errors="coerce",
-    )
+    ).astype(np.float32)
 
     long_df["Cyclo_scaling_factor"] = np.where(
         long_df[cyclo_tpm_col + "_original"] > 0,
         long_df[cyclo_tpm_corrected_col] / long_df[cyclo_tpm_col + "_original"],
         1.0,
-    )
+    ).astype(np.float32)
 
     long_df["Noncyclo_scaling_factor"] = np.where(
         long_df[noncyclo_tpm_col + "_original"] > 0,
         long_df[noncyclo_tpm_corrected_col] / long_df[noncyclo_tpm_col + "_original"],
         1.0,
-    )
+    ).astype(np.float32)
 
     long_df["Cyclo_scaling_factor"] = (
         long_df["Cyclo_scaling_factor"]
         .replace([np.inf, -np.inf], 1.0)
         .fillna(1.0)
+        .astype(np.float32)
     )
 
     long_df["Noncyclo_scaling_factor"] = (
         long_df["Noncyclo_scaling_factor"]
         .replace([np.inf, -np.inf], 1.0)
         .fillna(1.0)
+        .astype(np.float32)
     )
 
-    long_df[cyclo_tpm_col] = long_df[cyclo_tpm_corrected_col]
-    long_df[noncyclo_tpm_col] = long_df[noncyclo_tpm_corrected_col]
+    long_df[cyclo_tpm_col] = long_df[cyclo_tpm_corrected_col].astype(np.float32)
+    long_df[noncyclo_tpm_col] = long_df[noncyclo_tpm_corrected_col].astype(np.float32)
 
     for col in cyclo_count_cols:
         if col in long_df.columns:
@@ -295,7 +375,7 @@ def replace_original_with_corrected_tpm_and_scale_counts(
             long_df[col] = (
                 pd.to_numeric(long_df[col], errors="coerce").fillna(0)
                 * long_df["Cyclo_scaling_factor"]
-            )
+            ).astype(np.float32)
 
     for col in noncyclo_count_cols:
         if col in long_df.columns:
@@ -303,14 +383,10 @@ def replace_original_with_corrected_tpm_and_scale_counts(
             long_df[col] = (
                 pd.to_numeric(long_df[col], errors="coerce").fillna(0)
                 * long_df["Noncyclo_scaling_factor"]
-            )
+            ).astype(np.float32)
 
     return long_df
 
-
-# ============================================================
-# Main function
-# ============================================================
 
 def correct_tpm_by_metadata_covariates_with_pca(
     long_df,
@@ -343,7 +419,7 @@ def correct_tpm_by_metadata_covariates_with_pca(
         CONTINUOUS: Read length N50
         CATEGORICAL: CRDR
 
-    The correction model is:
+    Correction model:
 
         log2(TPM + 1) ~ preserved variables + correction covariates
 
@@ -369,88 +445,89 @@ def correct_tpm_by_metadata_covariates_with_pca(
             - "Cyclo_TPM"
             - "Noncyclo_TPM"
 
-        If present, these count columns are scaled:
-            - H0_cyclo_count
-            - H1_cyclo_count
-            - H2_cyclo_count
-            - cyclo_count
-            - H0_noncyclo_count
-            - H1_noncyclo_count
-            - H2_noncyclo_count
-            - noncyclo_count
+        If present, the following count columns are also scaled:
+            - "H0_cyclo_count"
+            - "H1_cyclo_count"
+            - "H2_cyclo_count"
+            - "cyclo_count"
+            - "H0_noncyclo_count"
+            - "H1_noncyclo_count"
+            - "H2_noncyclo_count"
+            - "noncyclo_count"
 
     metadata_df : pandas.DataFrame
-        Sample-condition metadata dataframe.
+        Metadata dataframe with one row per sample-condition pair.
 
         Required columns by default:
             - "Individual"
             - "Sample type"
 
-        Correction covariates should be encoded in the column names:
+        Covariates to remove are specified by column-name prefixes:
+            - "CONTINUOUS: <name>" for numeric covariates
+            - "CATEGORICAL: <name>" for categorical covariates
 
-            CONTINUOUS: Read length N50
-            CATEGORICAL: CRDR
-
-        Continuous covariates are z-scored before regression.
-        Categorical covariates are one-hot encoded with drop_first=True.
+        Example:
+            - "CONTINUOUS: Read length N50"
+            - "CATEGORICAL: CRDR"
 
     grouping_col : str, default "Isoform"
         Feature column used to build the sample-by-feature matrix.
 
         Use:
-            - "Isoform" for isoform-level correction
-            - "associated_gene" for gene-level correction
+            - "Isoform" for isoform-level correction/PCA
+            - "associated_gene" for gene-level correction/PCA
 
     sample_col : str, default "Sample"
-        Sample identifier column in `long_df`.
+        Sample identifier column in long_df.
 
-        Must match `metadata_df[metadata_sample_col]`.
+        Must match metadata_df[metadata_sample_col].
 
     cyclo_tpm_col : str, default "Cyclo_TPM"
         TPM column for cycloheximide-treated samples.
 
-        In the returned dataframe:
-            - this column is replaced with corrected values
-            - original values are saved as "Cyclo_TPM_original"
+        In the returned dataframe, this column is replaced with corrected
+        TPM-like values. Original values are saved as "Cyclo_TPM_original".
 
     noncyclo_tpm_col : str, default "Noncyclo_TPM"
-        TPM column for untreated samples.
+        TPM column for untreated/noncyclo samples.
 
-        In the returned dataframe:
-            - this column is replaced with corrected values
-            - original values are saved as "Noncyclo_TPM_original"
+        In the returned dataframe, this column is replaced with corrected
+        TPM-like values. Original values are saved as "Noncyclo_TPM_original".
 
     metadata_sample_col : str, default "Individual"
-        Sample identifier column in `metadata_df`.
+        Sample identifier column in metadata_df.
 
     metadata_condition_col : str, default "Sample type"
-        Condition column in `metadata_df`.
+        Condition column in metadata_df.
 
         Accepted values are case-insensitive:
-            - cyclo
-            - noncyclo
+            - "cyclo"
+            - "noncyclo"
 
-    preserve_cols : tuple or list of str, default ("Condition",)
+        This column is internally renamed to "Condition".
+
+    preserve_cols : tuple/list of str, default ("Condition",)
         Variables to preserve during correction.
 
         These variables are included in both the full model and the keep model.
-        Usually this should include "Condition" so Cyclo vs Noncyclo differences
-        are not regressed out.
+        Usually keep this as ("Condition",) so Cyclo vs Noncyclo effects are
+        not removed.
 
     tpm_filter : int or float, default 10
-        Feature filter used only for PCA.
+        Feature filter used for PCA only.
 
         A feature is included in PCA if at least one sample-condition has:
 
             TPM > tpm_filter
 
-        This does not affect which features are corrected.
+        This does not affect which features are corrected. Correction is run on
+        all nonzero features in the expression matrix.
 
     output_dir : str or None, default None
         Directory where outputs are saved.
 
         If provided, saves:
-            - IsoRanker-ready corrected dataframe
+            - corrected IsoRanker-ready dataframe
             - metadata with detected covariates
             - PCA table before correction
             - PCA table after correction
@@ -463,21 +540,24 @@ def correct_tpm_by_metadata_covariates_with_pca(
         Suffix for intermediate corrected TPM columns.
 
         With default TPM names:
-            - Cyclo_TPM_corrected
-            - Noncyclo_TPM_corrected
+            - "Cyclo_TPM_corrected"
+            - "Noncyclo_TPM_corrected"
 
     cmap : str, default "viridis"
         Matplotlib colormap for PCA coloring.
 
-        The first detected continuous covariate is used for PCA coloring.
+        The first detected continuous covariate is used for the PCA color scale.
+        If there are no continuous covariates, points are not colored by a
+        continuous variable.
 
     make_plots : bool, default True
         Whether to display PCA plots with plt.show().
 
-        Set to False for cluster or batch jobs.
+        Set to False for cluster or batch jobs. PDF files are still written if
+        output_dir is provided.
 
     return_matrices : bool, default False
-        Whether to return intermediate matrices.
+        Whether to return large intermediate matrices.
 
         If True, results["matrices"] includes:
             - raw_tpm_matrix
@@ -487,28 +567,30 @@ def correct_tpm_by_metadata_covariates_with_pca(
             - log_matrix_for_pca
             - corrected_log_matrix_for_pca
 
+        Keeping this False reduces RAM usage.
+
     Returns
     -------
     results : dict
-        Dictionary containing corrected dataframe, PCA outputs, detected covariates,
-        and optional matrices.
+        Dictionary containing corrected dataframe, PCA outputs, detected
+        covariates, and optional matrices.
 
         Main keys:
-            corrected_long_df
-            metadata
-            pca_before
-            pca_after
-            pca_model_before
-            pca_model_after
-            explained_before
-            explained_after
-            features_used_for_pca
-            continuous_correction_cols
-            categorical_correction_cols
+            - corrected_long_df
+            - metadata
+            - pca_before
+            - pca_after
+            - pca_model_before
+            - pca_model_after
+            - explained_before
+            - explained_after
+            - features_used_for_pca
+            - continuous_correction_cols
+            - categorical_correction_cols
 
     Notes
     -----
-    The returned `corrected_long_df` can be used directly as IsoRanker input.
+    PCA uses all features that pass `tpm_filter`; there is no feature cap.
     """
 
     if output_dir is not None:
@@ -522,7 +604,6 @@ def correct_tpm_by_metadata_covariates_with_pca(
     }
 
     missing_long = required_long_cols - set(long_df.columns)
-
     if missing_long:
         raise ValueError(f"long_df is missing required columns: {missing_long}")
 
@@ -546,25 +627,30 @@ def correct_tpm_by_metadata_covariates_with_pca(
     print("Detected categorical correction covariates:")
     print(categorical_correction_cols)
 
-    tmp = long_df.copy()
+    tmp = long_df[
+        [sample_col, grouping_col, cyclo_tpm_col, noncyclo_tpm_col]
+    ].copy()
 
     tmp[cyclo_tpm_col] = pd.to_numeric(
         tmp[cyclo_tpm_col],
         errors="coerce",
-    ).fillna(0)
+    ).fillna(0).astype(np.float32)
 
     tmp[noncyclo_tpm_col] = pd.to_numeric(
         tmp[noncyclo_tpm_col],
         errors="coerce",
-    ).fillna(0)
+    ).fillna(0).astype(np.float32)
 
     grouped = (
-        tmp.groupby([sample_col, grouping_col])[
+        tmp.groupby([sample_col, grouping_col], observed=True)[
             [cyclo_tpm_col, noncyclo_tpm_col]
         ]
         .sum()
         .reset_index()
     )
+
+    del tmp
+    gc.collect()
 
     cyclo = grouped[[sample_col, grouping_col, cyclo_tpm_col]].copy()
     cyclo.columns = ["Base_Sample", grouping_col, "TPM"]
@@ -574,7 +660,13 @@ def correct_tpm_by_metadata_covariates_with_pca(
     noncyclo.columns = ["Base_Sample", grouping_col, "TPM"]
     noncyclo["Condition"] = "Noncyclo"
 
+    del grouped
+    gc.collect()
+
     long_expr = pd.concat([cyclo, noncyclo], ignore_index=True)
+
+    del cyclo, noncyclo
+    gc.collect()
 
     long_expr["Sample_Condition"] = (
         long_expr["Base_Sample"].astype(str)
@@ -588,7 +680,8 @@ def correct_tpm_by_metadata_covariates_with_pca(
         values="TPM",
         aggfunc="sum",
         fill_value=0,
-    )
+        observed=True,
+    ).astype(np.float32)
 
     raw_matrix = raw_matrix.loc[raw_matrix.any(axis=1)]
     raw_matrix = raw_matrix.loc[:, raw_matrix.any(axis=0)]
@@ -601,11 +694,17 @@ def correct_tpm_by_metadata_covariates_with_pca(
         .reset_index()
     )
 
+    del long_expr
+    gc.collect()
+
     analysis_metadata = analysis_metadata.merge(
         covariates,
         on=["Base_Sample", "Condition"],
         how="left",
     )
+
+    del covariates
+    gc.collect()
 
     needed_cols = (
         list(preserve_cols)
@@ -627,7 +726,7 @@ def correct_tpm_by_metadata_covariates_with_pca(
                 f"Metadata column has missing values: {col}\n{missing_rows}"
             )
 
-    log_matrix = np.log2(raw_matrix + 1)
+    log_matrix = np.log2(raw_matrix + 1).astype(np.float32)
 
     corrected_log_matrix = remove_covariate_effects_preserve_variables(
         matrix=log_matrix,
@@ -636,18 +735,18 @@ def correct_tpm_by_metadata_covariates_with_pca(
         preserve_cols=preserve_cols,
         continuous_correction_cols=continuous_correction_cols,
         categorical_correction_cols=categorical_correction_cols,
-    )
-
-    corrected_tpm_like_matrix = 2 ** corrected_log_matrix
+    ).astype(np.float32)
 
     keep_features = raw_matrix.max(axis=0)
     keep_features = keep_features[keep_features > tpm_filter].index
 
-    log_matrix_for_pca = log_matrix.loc[:, keep_features]
-    corrected_log_matrix_for_pca = corrected_log_matrix.loc[:, keep_features]
+    log_matrix_for_pca = log_matrix.loc[:, keep_features].astype(np.float32)
+    corrected_log_matrix_for_pca = corrected_log_matrix.loc[:, keep_features].astype(
+        np.float32
+    )
 
     def run_pca(matrix):
-        scaled = StandardScaler().fit_transform(matrix)
+        scaled = StandardScaler().fit_transform(matrix).astype(np.float32)
 
         pca = PCA(n_components=2)
         pcs = pca.fit_transform(scaled)
@@ -666,10 +765,15 @@ def correct_tpm_by_metadata_covariates_with_pca(
             how="left",
         )
 
+        del scaled, pcs
+        gc.collect()
+
         return pca_df, pca, explained
 
     pca_before, pca_model_before, explained_before = run_pca(log_matrix_for_pca)
-    pca_after, pca_model_after, explained_after = run_pca(corrected_log_matrix_for_pca)
+    pca_after, pca_model_after, explained_after = run_pca(
+        corrected_log_matrix_for_pca
+    )
 
     color_col = continuous_correction_cols[0] if continuous_correction_cols else None
 
@@ -769,8 +873,10 @@ def correct_tpm_by_metadata_covariates_with_pca(
         output_pdf=after_pdf,
     )
 
+    corrected_tpm_for_merge = (2 ** corrected_log_matrix).astype(np.float32)
+
     corrected_long = (
-        corrected_tpm_like_matrix
+        corrected_tpm_for_merge
         .reset_index(names="Sample_Condition")
         .melt(
             id_vars="Sample_Condition",
@@ -778,6 +884,9 @@ def correct_tpm_by_metadata_covariates_with_pca(
             value_name="Corrected_TPM",
         )
     )
+
+    del corrected_tpm_for_merge
+    gc.collect()
 
     corrected_long = corrected_long.merge(
         analysis_metadata[["Sample_Condition", "Base_Sample", "Condition"]],
@@ -792,6 +901,7 @@ def correct_tpm_by_metadata_covariates_with_pca(
             columns="Condition",
             values="Corrected_TPM",
             aggfunc="first",
+            observed=True,
         )
         .reset_index()
     )
@@ -811,6 +921,9 @@ def correct_tpm_by_metadata_covariates_with_pca(
         on=[sample_col, grouping_col],
         how="left",
     )
+
+    del corrected_long, corrected_wide
+    gc.collect()
 
     corrected_long_df = replace_original_with_corrected_tpm_and_scale_counts(
         corrected_long_df,
@@ -873,6 +986,8 @@ def correct_tpm_by_metadata_covariates_with_pca(
     }
 
     if return_matrices:
+        corrected_tpm_like_matrix = (2 ** corrected_log_matrix).astype(np.float32)
+
         results["matrices"] = {
             "raw_tpm_matrix": raw_matrix,
             "log2_tpm_matrix": log_matrix,
@@ -881,6 +996,12 @@ def correct_tpm_by_metadata_covariates_with_pca(
             "log_matrix_for_pca": log_matrix_for_pca,
             "corrected_log_matrix_for_pca": corrected_log_matrix_for_pca,
         }
+    else:
+        del raw_matrix
+        del log_matrix
+        del corrected_log_matrix
+        del log_matrix_for_pca
+        del corrected_log_matrix_for_pca
+        gc.collect()
 
     return results
-
