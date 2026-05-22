@@ -384,8 +384,8 @@ def main():
 
 
     if resume_from_phenotype:
-        sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
-        sample_info = pd.read_csv(sample_info_path, compression="gzip", sep="\t")
+        #sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
+        sample_info = pd.read_csv(args.sample_info_path, compression="gzip", sep="\t")
         classification_data = pd.read_csv(classification_path, sep="\t")
         genemap = pd.read_csv(genemap_path, sep="\t", skiprows=3)
         genemap = genemap[genemap["Approved Gene Symbol"].notnull()]
