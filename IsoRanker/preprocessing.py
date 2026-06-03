@@ -3,7 +3,7 @@ import pandas as pd
 import gzip
 
 
-# This step takes up a lot of RAM
+
 def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_stats_path, output_dir):
     """
     Updates read statistics and sample metadata with haplotype information.
@@ -25,21 +25,21 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     Returns:
     - None: Writes updated read stats and sample info files to the specified output directory.
     """
-    
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Load sample_info_with_haplotype_location.tsv
     sample_info = pd.read_csv(sample_info_with_haplotype_location, sep="\t")
 
-    # Load read_stats.txt. Allow the file to be zipped or not
-    read_stats = pd.read_csv(read_stats_path, sep="\t", dtype={0: str}, compression='infer') # Ensure read id column (first column) is string
+    read_stats = pd.read_csv(
+        read_stats_path,
+        sep="\t",
+        dtype={0: str},
+        compression="infer"
+    )
 
-    # Ensure the first column is named "id"
-    read_stats.rename(columns={read_stats.columns[0]: 'id'}, inplace=True)
+    read_stats.rename(columns={read_stats.columns[0]: "id"}, inplace=True)
 
-    # Processing sample_info to extract haplotype assignment files
-    all_haplotypes = []  # Store haplotype assignments in a list for efficient merging
+    all_haplotypes = []
 
     for _, row in sample_info.iterrows():
         sample = row["sample"]
@@ -47,21 +47,64 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
 
         print(f"Processing haplotype assignment file for {sample}", flush=True)
 
-
-        if pd.notna(haplotype_file) and haplotype_file.strip():
+        if pd.notna(haplotype_file) and str(haplotype_file).strip():
             try:
-                # Check if file is empty or contains only headers
                 with open(haplotype_file, "r") as f:
                     lines = f.readlines()
-                    if len(lines) <= 1:  # Only header row present
-                        print(f"Warning: {haplotype_file} contains only headers or is empty. Skipping.", flush=True)
-                        continue  # Skip this file
+                    if len(lines) <= 1:
+                        print(
+                            f"Warning: {haplotype_file} contains only headers or is empty. Skipping.",
+                            flush=True
+                        )
+                        continue
 
-                # Read haplotype file in chunks if it is large
-                for chunk in pd.read_csv(haplotype_file, sep="\t", chunksize=500000, usecols=["#readname", "haplotype"], dtype=str):
+                for chunk in pd.read_csv(
+                    haplotype_file,
+                    sep="\t",
+                    chunksize=500000,
+                    dtype=str
+                ):
                     if chunk.empty:
-                        continue  # Skip empty chunks
-                    chunk.rename(columns={"#readname": "id"}, inplace=True)
+                        continue
+
+                    column_map = {}
+
+                    if "#readname" in chunk.columns:
+                        column_map["#readname"] = "id"
+                    elif "ReadName" in chunk.columns:
+                        column_map["ReadName"] = "id"
+                    else:
+                        raise ValueError(
+                            f"{haplotype_file} must contain either '#readname' or 'ReadName'"
+                        )
+
+                    if "haplotype" in chunk.columns:
+                        column_map["haplotype"] = "haplotype"
+                    elif "Haplotype" in chunk.columns:
+                        column_map["Haplotype"] = "haplotype"
+                    else:
+                        raise ValueError(
+                            f"{haplotype_file} must contain either 'haplotype' or 'Haplotype'"
+                        )
+
+                    chunk = chunk.rename(columns=column_map)[["id", "haplotype"]]
+
+                    chunk["haplotype"] = (
+                        chunk["haplotype"]
+                        .fillna("H0")
+                        .astype(str)
+                        .str.strip()
+                        .replace({
+                            "0": "H0",
+                            "1": "H1",
+                            "2": "H2",
+                            "none": "H0",
+                            "None": "H0",
+                            "nan": "H0",
+                            "": "H0",
+                        })
+                    )
+
                     all_haplotypes.append(chunk)
 
             except FileNotFoundError:
@@ -69,70 +112,155 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
             except pd.errors.EmptyDataError:
                 print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
 
-    # Combine haplotype data into a single DataFrame
     if all_haplotypes:
         haplotype_df = pd.concat(all_haplotypes, ignore_index=True)
     else:
-        haplotype_df = pd.DataFrame(columns=["id", "haplotype"])  # Empty DataFrame to avoid errors
+        haplotype_df = pd.DataFrame(columns=["id", "haplotype"])
 
-    # Merge haplotype info with read_stats
     read_stats = read_stats.merge(haplotype_df, on="id", how="left")
 
-    # Replace NaN or "none" haplotypes with "H0"
-    read_stats["haplotype"] = read_stats["haplotype"].fillna("H0").replace("none", "H0")
+    read_stats["haplotype"] = (
+        read_stats["haplotype"]
+        .fillna("H0")
+        .astype(str)
+        .str.strip()
+        .replace({
+            "0": "H0",
+            "1": "H1",
+            "2": "H2",
+            "none": "H0",
+            "None": "H0",
+            "nan": "H0",
+            "": "H0",
+        })
+    )
 
-    # Modify `id` column efficiently using vectorized string operations
-    # read_stats["id"] = read_stats["id"].str.split("_", n=1).str[0] + read_stats["haplotype"] + "_" + read_stats["id"].str.split("_", n=1).str[1]
-    read_stats["id"] = read_stats["id"].str.split("_m", n=1).str[0] + read_stats["haplotype"] + "_m" + read_stats["id"].str.split("_m", n=1).str[1]
+    read_stats["id"] = (
+        read_stats["id"].str.split("_m", n=1).str[0]
+        + read_stats["haplotype"]
+        + "_m"
+        + read_stats["id"].str.split("_m", n=1).str[1]
+    )
 
-    # Drop the `haplotype` column as it's no longer needed
     read_stats.drop(columns=["haplotype"], inplace=True)
 
-    # Save updated read_stats
     updated_read_stats_path = os.path.join(output_dir, "updated_read_stats.txt.gz")
-    read_stats.to_csv(updated_read_stats_path, sep="\t", index=False, compression = "gzip")
+    read_stats.to_csv(
+        updated_read_stats_path,
+        sep="\t",
+        index=False,
+        compression="gzip"
+    )
+
     print(f"Updated read_stats saved to {updated_read_stats_path}", flush=True)
 
 
-    # Update sample_info with haplotype assignments
-    # updated_sample_info = []
 
-    # for _, row in sample_info.iterrows():
-    #     sample, individual, condition, haplotype = row["sample"], row["individual"], row["condition"], row["haplotype"]
+# New version that should take less RAM. Hasn't been tested yet though.
+# def update_files_with_haplotype_info(sample_info_path, read_stats_path, output_dir):
+#     os.makedirs(output_dir, exist_ok=True)
 
-    #     if pd.notna(haplotype) and haplotype.strip():
-    #         updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
-    #         updated_sample_info.append([f"{sample}H1", individual, condition, "H1"])
-    #         updated_sample_info.append([f"{sample}H2", individual, condition, "H2"])
-    #     else:
-    #         updated_sample_info.append([f"{sample}H0", individual, condition, "H0"])
+#     sample_info = pd.read_csv(sample_info_path, sep="\t")
 
-    # Retain all columns from the original sample_info
-    updated_sample_info = []
+#     # Build compact read_id -> haplotype dictionary
+#     hap_map = {}
 
-    for _, row in sample_info.iterrows():
-        row_dict = row.to_dict()  # Convert row to dictionary to preserve all columns
-        sample = row_dict["sample"]
-        haplotype = row_dict["haplotype"]
+#     for _, row in sample_info.iterrows():
+#         sample = row["sample"]
+#         haplotype_file = row["haplotype"]
 
-        if pd.notna(haplotype) and haplotype.strip():
-            for hap in ["H0", "H1", "H2"]:
-                new_row = row_dict.copy()
-                new_row["sample"] = f"{sample}{hap}"
-                new_row["haplotype"] = hap
-                updated_sample_info.append(new_row)
-        else:
-            new_row = row_dict.copy()
-            new_row["sample"] = f"{sample}H0"
-            new_row["haplotype"] = "H0"
-            updated_sample_info.append(new_row)
+#         print(f"Processing haplotype assignment file for {sample}", flush=True)
 
-    # Convert to DataFrame and save
-    updated_sample_info_df = pd.DataFrame(updated_sample_info)
-    updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
-    updated_sample_info_df.to_csv(updated_sample_info_path, index=False, compression = "gzip", sep="\t")
+#         if pd.isna(haplotype_file) or not str(haplotype_file).strip():
+#             continue
 
-    print(f"Updated sample info saved to {updated_sample_info_path}", flush=True)
+#         haplotype_file = str(haplotype_file)
+
+#         try:
+#             for chunk in pd.read_csv(
+#                 haplotype_file,
+#                 sep="\t",
+#                 usecols=["#readname", "haplotype"],
+#                 dtype=str,
+#                 chunksize=2_000_000,
+#             ):
+#                 chunk["haplotype"] = (
+#                     chunk["haplotype"]
+#                     .fillna("H0")
+#                     .replace("none", "H0")
+#                 )
+
+#                 hap_map.update(zip(chunk["#readname"], chunk["haplotype"]))
+
+#         except FileNotFoundError:
+#             print(f"Warning: File {haplotype_file} not found. Skipping.", flush=True)
+#         except pd.errors.EmptyDataError:
+#             print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
+#         except ValueError:
+#             print(f"Warning: {haplotype_file} missing required columns. Skipping.", flush=True)
+
+#     # Stream read_stats instead of loading all into RAM
+#     updated_read_stats_path = os.path.join(output_dir, "updated_read_stats.txt.gz")
+
+#     first_chunk = True
+
+#     with gzip.open(updated_read_stats_path, "wt") as out:
+#         for read_chunk in pd.read_csv(
+#             read_stats_path,
+#             sep="\t",
+#             dtype=str,
+#             compression="infer",
+#             chunksize=2_000_000,
+#         ):
+#             read_chunk.rename(columns={read_chunk.columns[0]: "id"}, inplace=True)
+
+#             hap = read_chunk["id"].map(hap_map).fillna("H0")
+
+#             parts = read_chunk["id"].str.split("_m", n=1, expand=True)
+
+#             read_chunk["id"] = parts[0] + hap + "_m" + parts[1]
+
+#             read_chunk.to_csv(
+#                 out,
+#                 sep="\t",
+#                 index=False,
+#                 header=first_chunk,
+#             )
+
+#             first_chunk = False
+
+#     print(f"Updated read_stats saved to {updated_read_stats_path}", flush=True)
+
+#     # Update sample_info
+#     updated_sample_info = []
+
+#     for _, row in sample_info.iterrows():
+#         row_dict = row.to_dict()
+#         sample = row_dict["sample"]
+#         haplotype = row_dict["haplotype"]
+
+#         if pd.notna(haplotype) and str(haplotype).strip():
+#             for hap in ["H0", "H1", "H2"]:
+#                 new_row = row_dict.copy()
+#                 new_row["sample"] = f"{sample}{hap}"
+#                 new_row["haplotype"] = hap
+#                 updated_sample_info.append(new_row)
+#         else:
+#             new_row = row_dict.copy()
+#             new_row["sample"] = f"{sample}H0"
+#             new_row["haplotype"] = "H0"
+#             updated_sample_info.append(new_row)
+
+#     updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
+
+#     pd.DataFrame(updated_sample_info).to_csv(
+#         updated_sample_info_path,
+#         index=False,
+#         compression="gzip",
+#         sep="\t",
+#     )
+
+#     print(f"Updated sample info saved to {updated_sample_info_path}", flush=True)
 
 
 
