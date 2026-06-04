@@ -36,27 +36,40 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     sample_info = pd.read_csv(sample_info_with_haplotype_location, sep="\t")
 
     def write_updated_sample_info():
-        expanded_sample_info = []
+        updated_sample_info = []
 
         for _, row in sample_info.iterrows():
-            for hap in ["H0", "H1", "H2"]:
-                new_row = row.copy()
-                new_row["sample"] = f"{row['sample']}{hap}"
-                expanded_sample_info.append(new_row)
+            row_dict = row.to_dict()
 
-        updated_sample_info = pd.DataFrame(expanded_sample_info)
+            sample = row_dict["sample"]
+            haplotype = row_dict.get("haplotype", None)
 
-        if "haplotype" in updated_sample_info.columns:
-            updated_sample_info.drop(columns=["haplotype"], inplace=True)
+            if pd.notna(haplotype) and str(haplotype).strip():
+                for hap in ["H0", "H1", "H2"]:
+                    new_row = row_dict.copy()
+                    new_row["sample"] = f"{sample}{hap}"
+                    new_row["haplotype"] = hap
+                    updated_sample_info.append(new_row)
+            else:
+                new_row = row_dict.copy()
+                new_row["sample"] = f"{sample}H0"
+                new_row["haplotype"] = "H0"
+                updated_sample_info.append(new_row)
 
-        updated_sample_info.to_csv(
+        updated_sample_info_df = pd.DataFrame(updated_sample_info)
+
+        updated_sample_info_df.to_csv(
             updated_sample_info_path,
             sep="\t",
             index=False,
             compression="gzip"
         )
 
-        print(f"Updated sample_info saved to {updated_sample_info_path}", flush=True)
+        print(
+            f"Updated sample info saved to {updated_sample_info_path}",
+            flush=True
+        )
+
 
     if os.path.exists(updated_read_stats_path):
         print(
