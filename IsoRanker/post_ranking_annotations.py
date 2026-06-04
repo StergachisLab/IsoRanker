@@ -766,6 +766,20 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
             f"{individual}.isoranker_subsetted.vcf.gz"
         )
 
+
+        vcf_index = vcf_out + ".tbi"
+
+        if (
+            os.path.exists(vcf_out)
+            and os.path.getsize(vcf_out) > 0
+            and os.path.exists(vcf_index)
+        ):
+            print(
+                f"Skipping {individual}: subsetted VCF already exists",
+                flush=True
+            )
+            continue
+
         ################################################
         # Validate files
         ################################################
