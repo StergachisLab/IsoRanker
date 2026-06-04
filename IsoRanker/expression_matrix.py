@@ -2,7 +2,9 @@ import pandas as pd
 from collections import defaultdict
 import gzip
 
-def parse_read_stats(file_path):
+
+
+def parse_read_stats(file_path, samples_to_keep=None):
     """
     Parse the read_stats.txt or read_stats.txt.gz file to extract sample and PB identifiers.
 
@@ -13,27 +15,31 @@ def parse_read_stats(file_path):
     - dict: A nested dictionary with PB identifiers as keys and sample counts as values.
     """
     counts = defaultdict(lambda: defaultdict(int))
-    
-    # Detect if the file is gzipped and open accordingly
+
     open_func = gzip.open if file_path.endswith(".gz") else open
-    
-    with open_func(file_path, 'rt') as f:  # 'rt' mode ensures text reading
+
+    with open_func(file_path, "rt") as f:
         for line in f:
-            # Split the line into components
             read, pb_id = line.strip().split()
-            
-            # Extract the sample name (before the first "_")
-            sample = read.split('_m')[0]
-            
-            # Increment the count for the PB identifier in the sample
+
+            sample = read.split("_m")[0]
+
+            if samples_to_keep is not None and sample not in samples_to_keep:
+                continue
+
             counts[pb_id][sample] += 1
-    
+
     return counts
 
 
-def create_expression_matrix(file_path, output_file=None):
+def create_expression_matrix(file_path, output_file=None, sample_info=None):
     """
-    Create an expression matrix from a read_stats.txt file.
+    Create an expression matrix from a read_stats.txt/read_stats.txt.gz file.
+
+    If sample_info is provided, only samples listed in sample_info["sample"]
+    are included. If sample_info is not provided, all samples in read_stats
+    are included.
+
 
     Parameters:
     - file_path: Path to the read_stats.txt file.
@@ -42,21 +48,31 @@ def create_expression_matrix(file_path, output_file=None):
     Returns:
     - A pandas DataFrame representing the expression matrix.
     """
-    # Parse the file and aggregate counts
-    counts = parse_read_stats(file_path)
-    
-    # Create a DataFrame from the nested dictionary
-    df = pd.DataFrame.from_dict(counts, orient='index').fillna(0).astype(int)
-    
-    # Sort rows and columns for better readability
+
+    samples_to_keep = None
+
+    if sample_info is not None:
+        if isinstance(sample_info, str):
+            sample_info = pd.read_csv(sample_info, sep="\t")
+
+        if "sample" not in sample_info.columns:
+            raise ValueError("sample_info must contain a 'sample' column")
+
+        samples_to_keep = set(sample_info["sample"].astype(str))
+
+    counts = parse_read_stats(file_path, samples_to_keep=samples_to_keep)
+
+    df = pd.DataFrame.from_dict(counts, orient="index").fillna(0).astype(int)
+
     df.sort_index(inplace=True)
     df.sort_index(axis=1, inplace=True)
-    
-    # Save to a CSV file if specified
+
     if output_file:
         df.to_csv(output_file, index=True, compression="gzip", sep="\t")
-    
+
     return df
+
+
 
 
 def create_long_format(expression_matrix, sample_info=None):
