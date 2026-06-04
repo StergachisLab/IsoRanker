@@ -500,15 +500,16 @@ def main():
     # For each sample in gene_level_merged_df
     for sample in gene_level_merged_df['Sample'].unique():
         tsv_path = f"variant_annotations_tables/{sample}_gene_haplotype_split.tsv"
-        
-        if os.path.exists(tsv_path):
-            # Load haplotype data
-            haplo_df = pd.read_csv(tsv_path, sep="\t")
-            haplo_df["Sample"] = sample  # tag with sample for merge
-            
-            haplotype_entries.append(haplo_df)
+
+        if not os.path.exists(tsv_path) or os.path.getsize(tsv_path) == 0:
+            print(f"[WARNING] Empty or missing haplotype TSV: {tsv_path}")
+            haplo_df = pd.DataFrame()
         else:
-            print(f"Haplotype TSV not found for {sample}")
+            try:
+                haplo_df = pd.read_csv(tsv_path, sep="\t")
+            except EmptyDataError:
+                print(f"[WARNING] No columns to parse from haplotype TSV: {tsv_path}")
+                haplo_df = pd.DataFrame()
 
     # Combine all haplotype info
     all_haplo = pd.concat(haplotype_entries, ignore_index=True)
