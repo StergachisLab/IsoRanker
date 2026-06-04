@@ -129,7 +129,7 @@ def main():
         # Create the isoform-level expression matrix
         ################################################
         print("Creating expression matrix", flush=True)
-        expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.tsv.gz"))
+        expression_matrix = create_expression_matrix(read_stat_path, output_file=os.path.join(output_dir, "expression_matrix.tsv.gz"), sample_info=sample_info)
 
         ################################################
         # Generate long-format DataFrame
