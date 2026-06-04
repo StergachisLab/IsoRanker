@@ -2,8 +2,6 @@ import os
 import pandas as pd
 import gzip
 
-
-
 def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_stats_path, output_dir):
     """
     Updates read statistics and sample metadata with haplotype information.
@@ -25,6 +23,9 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     Returns:
     - None: Writes updated read stats and sample info files to the specified output directory.
     """
+
+    import os
+    import pandas as pd
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -98,6 +99,9 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
                             "0": "H0",
                             "1": "H1",
                             "2": "H2",
+                            "H0": "H0",
+                            "H1": "H1",
+                            "H2": "H2",
                             "none": "H0",
                             "None": "H0",
                             "nan": "H0",
@@ -128,6 +132,9 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
             "0": "H0",
             "1": "H1",
             "2": "H2",
+            "H0": "H0",
+            "H1": "H1",
+            "H2": "H2",
             "none": "H0",
             "None": "H0",
             "nan": "H0",
@@ -135,11 +142,13 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
         })
     )
 
+    split_id = read_stats["id"].str.split("_m", n=1)
+
     read_stats["id"] = (
-        read_stats["id"].str.split("_m", n=1).str[0]
+        split_id.str[0]
         + read_stats["haplotype"]
         + "_m"
-        + read_stats["id"].str.split("_m", n=1).str[1]
+        + split_id.str[1]
     )
 
     read_stats.drop(columns=["haplotype"], inplace=True)
@@ -153,6 +162,29 @@ def update_files_with_haplotype_info(sample_info_with_haplotype_location, read_s
     )
 
     print(f"Updated read_stats saved to {updated_read_stats_path}", flush=True)
+
+    expanded_sample_info = []
+
+    for _, row in sample_info.iterrows():
+        for hap in ["H0", "H1", "H2"]:
+            new_row = row.copy()
+            new_row["sample"] = f"{row['sample']}{hap}"
+            expanded_sample_info.append(new_row)
+
+    updated_sample_info = pd.DataFrame(expanded_sample_info)
+
+    if "haplotype" in updated_sample_info.columns:
+        updated_sample_info.drop(columns=["haplotype"], inplace=True)
+
+    updated_sample_info_path = os.path.join(output_dir, "updated_sample_info.tsv.gz")
+    updated_sample_info.to_csv(
+        updated_sample_info_path,
+        sep="\t",
+        index=False,
+        compression="gzip"
+    )
+
+    print(f"Updated sample_info saved to {updated_sample_info_path}", flush=True)
 
 
 
