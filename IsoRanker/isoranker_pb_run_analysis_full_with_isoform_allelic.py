@@ -988,7 +988,7 @@ def main():
 
         # For each sample in gene_level_merged_df
     for sample in gene_level_merged_df['Sample'].unique():
-        tsv_path = f"variant_annotations_tables/{sample}_gene_haplotype_split.tsv"
+        tsv_path = f"Output/intermediate/variant_annotations_tables/{sample}_gene_haplotype_split.tsv"
 
         if not os.path.exists(tsv_path) or os.path.getsize(tsv_path) == 0:
             print(f"[WARNING] Empty or missing haplotype TSV: {tsv_path}")
