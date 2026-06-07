@@ -67,7 +67,15 @@ def main():
         default=None,
         help="Optional metadata file for batch correction covariates."
     )
-
+    parser.add_argument(
+        "--min_gene_depth",
+        type=int,
+        default=None,
+        help=(
+            "Minimum gene-level cyclo_count and noncyclo_count required "
+            "within each Sample + associated_gene pair. Default: None."
+        )
+    )
 
     args = parser.parse_args()
 
@@ -85,6 +93,7 @@ def main():
     gtf_path_input = args.gtf_path_input
     only_omim_with_phenotype = args.only_omim_with_phenotype
     covariate_metadata_path = args.covariate_metadata_path
+    min_gene_depth = args.min_gene_depth
 
     output_dir = "."
 
@@ -147,7 +156,53 @@ def main():
             how="left"
         ).drop(columns=["isoform"])
 
-        long_format_annotated.to_csv(os.path.join(output_dir, "long_format_annotated.tsv.gz"), index=False, compression = "gzip", sep="\t")
+
+        ######################## Optional filter for minimum shared coverage ########################
+
+        if min_gene_depth is not None:
+            group_cols = ["Sample", "associated_gene"]
+
+            before_n = len(long_format_annotated)
+
+            # First get gene-level depth per sample
+            gene_sample_counts = (
+                long_format_annotated
+                .groupby(group_cols, sort=False, observed=True)[["cyclo_count", "noncyclo_count"]]
+                .sum()
+                .reset_index()
+            )
+
+            # Mark whether each Sample + gene passes
+            gene_sample_counts["passes_depth_filter"] = (
+                (gene_sample_counts["cyclo_count"] > min_gene_depth) |
+                (gene_sample_counts["noncyclo_count"] > min_gene_depth)
+            )
+
+            # Keep only genes where ALL samples pass
+            valid_genes = gene_sample_counts.loc[
+                gene_sample_counts
+                .groupby("associated_gene")["passes_depth_filter"]
+                .transform("all"),
+                "associated_gene"
+            ].drop_duplicates()
+
+            long_format_annotated = long_format_annotated[
+                long_format_annotated["associated_gene"].isin(valid_genes)
+            ].copy()
+
+            after_n = len(long_format_annotated)
+
+            print(
+                f"Filtered to genes where every sample has "
+                f"gene-level cyclo_count > {min_gene_depth} and "
+                f"gene-level noncyclo_count > {min_gene_depth}: "
+                f"{before_n:,} -> {after_n:,}",
+                flush=True
+            )
+
+        else:
+            print("No gene-level depth filter applied.", flush=True)
+
 
         ######################## Optional filter for OMIM genes with phenotype ########################
 
@@ -194,6 +249,8 @@ def main():
                 "Using all genes for ranking; no OMIM phenotype filter applied.",
                 flush=True
             )
+
+        long_format_annotated.to_csv(os.path.join(output_dir, "long_format_annotated.tsv.gz"), index=False, compression = "gzip", sep="\t")
 
         ################################################
         # Create the gene-level expression matrix
