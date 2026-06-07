@@ -185,6 +185,9 @@ def create_long_format(expression_matrix, sample_info=None):
     total_cyclo = aggregated_data.groupby("Sample", sort=False)["cyclo_count"].transform("sum")
     total_noncyclo = aggregated_data.groupby("Sample", sort=False)["noncyclo_count"].transform("sum")
 
+    aggregated_data["total_cyclo"] = total_cyclo
+    aggregated_data["total_noncyclo"] = total_noncyclo
+
     aggregated_data["Cyclo_TPM"] = np.where(
         total_cyclo > 0,
         aggregated_data["cyclo_count"] / total_cyclo * 1e6,
