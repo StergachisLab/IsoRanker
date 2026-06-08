@@ -235,25 +235,39 @@ def update_files_with_haplotype_info(sample_info_path, read_stats_path, output_d
             .astype(str)
             .str.strip()
             .replace({
-                "0": "H0",
-                "1": "H1",
-                "2": "H2",
-                "0.0": "H0",
-                "1.0": "H1",
-                "2.0": "H2",
-                "H0": "H0",
-                "H1": "H1",
-                "H2": "H2",
-                "h0": "H0",
-                "h1": "H1",
-                "h2": "H2",
-                "none": "H0",
-                "None": "H0",
-                "nan": "H0",
-                "NaN": "H0",
+                "0": "H0", "1": "H1", "2": "H2",
+                "0.0": "H0", "1.0": "H1", "2.0": "H2",
+                "h0": "H0", "h1": "H1", "h2": "H2",
+                "H0": "H0", "H1": "H1", "H2": "H2",
+                "none": "H0", "None": "H0",
+                "nan": "H0", "NaN": "H0",
                 "": "H0",
             })
         )
+
+    def find_read_col(columns):
+        for c in ["#readname", "ReadName", "readname", "id", "ID"]:
+            if c in columns:
+                return c
+        raise ValueError(f"No read-name column found. Columns: {list(columns)}")
+
+    def find_hap_col(columns):
+        for c in ["haplotype", "Haplotype", "HP"]:
+            if c in columns:
+                return c
+        raise ValueError(f"No haplotype column found. Columns: {list(columns)}")
+
+    def find_isoform_col(columns):
+        for c in [
+            "isoform", "Isoform",
+            "pbid", "PBID",
+            "associated_transcript",
+            "transcript_id",
+            "isoform_id",
+        ]:
+            if c in columns:
+                return c
+        return columns[1]
 
     def write_updated_sample_info():
         updated_rows = []
@@ -294,139 +308,152 @@ def update_files_with_haplotype_info(sample_info_path, read_stats_path, output_d
         return
 
     # ------------------------------------------------------------
-    # Build read_id -> haplotype map in chunks
-    # Flexible input columns:
-    #   read name: #readname, ReadName, readname, id
-    #   haplotype: haplotype, Haplotype, HP
+    # Load only read ID + isoform from read_stats once.
+    # This is still large for 300M rows, but much smaller than full read_stats.
     # ------------------------------------------------------------
-    hap_map = {}
+    read_stats_header = pd.read_csv(
+        read_stats_path,
+        sep="\t",
+        nrows=0,
+        compression="infer",
+    ).columns.tolist()
 
-    for _, row in sample_info.iterrows():
-        sample = row["sample"]
-        haplotype_file = row.get("haplotype", None)
+    read_stats_read_col = read_stats_header[0]
+    isoform_col = find_isoform_col(read_stats_header)
 
-        print(f"Processing haplotype assignment file for {sample}", flush=True)
+    print(f"Using read_stats read column: {read_stats_read_col}", flush=True)
+    print(f"Using read_stats isoform column: {isoform_col}", flush=True)
 
-        if pd.isna(haplotype_file) or not str(haplotype_file).strip():
-            print(f"No haplotype file for {sample}; reads will default to H0.", flush=True)
-            continue
+    read_stats_small = pd.read_csv(
+        read_stats_path,
+        sep="\t",
+        usecols=[read_stats_read_col, isoform_col],
+        dtype=str,
+        compression="infer",
+    )
 
-        haplotype_file = str(haplotype_file).strip()
+    read_stats_small = read_stats_small.rename(
+        columns={read_stats_read_col: "id", isoform_col: "isoform"}
+    )
 
-        try:
-            header = pd.read_csv(
-                haplotype_file,
-                sep="\t",
-                nrows=0,
-                dtype=str,
-            ).columns.tolist()
+    read_stats_small["id"] = read_stats_small["id"].astype(str).str.strip()
 
-            if "#readname" in header:
-                read_col = "#readname"
-            elif "ReadName" in header:
-                read_col = "ReadName"
-            elif "readname" in header:
-                read_col = "readname"
-            elif "id" in header:
-                read_col = "id"
-            else:
-                raise ValueError(
-                    f"{haplotype_file} must contain one of: "
-                    "'#readname', 'ReadName', 'readname', or 'id'. "
-                    f"Found columns: {header}"
-                )
+    read_stats_small = read_stats_small[
+        read_stats_small["id"].notna() & (read_stats_small["id"] != "")
+    ]
 
-            if "haplotype" in header:
-                hap_col = "haplotype"
-            elif "Haplotype" in header:
-                hap_col = "Haplotype"
-            elif "HP" in header:
-                hap_col = "HP"
-            else:
-                raise ValueError(
-                    f"{haplotype_file} must contain one of: "
-                    "'haplotype', 'Haplotype', or 'HP'. "
-                    f"Found columns: {header}"
-                )
+    # Index once so each 5M haplotype table can join efficiently.
+    read_stats_small = read_stats_small.set_index("id", drop=False)
 
-            for chunk in pd.read_csv(
-                haplotype_file,
-                sep="\t",
-                usecols=[read_col, hap_col],
-                dtype=str,
-                chunksize=2_000_000,
-            ):
-                if chunk.empty:
-                    continue
-
-                chunk = chunk.rename(columns={read_col: "id", hap_col: "haplotype"})
-                chunk["id"] = chunk["id"].astype(str).str.strip()
-                chunk["haplotype"] = normalize_haplotype(chunk["haplotype"])
-
-                # Remove rows with missing/empty read IDs.
-                chunk = chunk[chunk["id"].notna() & (chunk["id"] != "")]
-
-                hap_map.update(zip(chunk["id"], chunk["haplotype"]))
-
-        except FileNotFoundError:
-            print(f"Warning: File {haplotype_file} not found. Skipping.", flush=True)
-        except pd.errors.EmptyDataError:
-            print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
-        except ValueError as e:
-            print(f"Warning: {e}. Skipping.", flush=True)
-
-    print(f"Total haplotyped reads loaded: {len(hap_map):,}", flush=True)
+    print(
+        f"Loaded read_stats isoform assignments: {len(read_stats_small):,} rows",
+        flush=True,
+    )
 
     # ------------------------------------------------------------
-    # Stream read_stats instead of loading full file into RAM
+    # For each haplotype file:
+    #   - load one haplotype df at a time
+    #   - merge with read_stats_small
+    #   - rewrite read IDs
+    #   - append id + isoform to updated_read_stats.txt.gz
     # ------------------------------------------------------------
-    first_chunk = True
-    total_reads = 0
-    total_h1_h2 = 0
+    first_output = True
+    total_written = 0
+    total_missing_isoform = 0
 
     with gzip.open(updated_read_stats_path, "wt") as out:
-        for read_chunk in pd.read_csv(
-            read_stats_path,
-            sep="\t",
-            dtype=str,
-            compression="infer",
-            chunksize=2_000_000,
-        ):
-            if read_chunk.empty:
+        for _, row in sample_info.iterrows():
+            sample = row["sample"]
+            haplotype_file = row.get("haplotype", None)
+
+            print(f"Processing haplotype assignment file for {sample}", flush=True)
+
+            if pd.isna(haplotype_file) or not str(haplotype_file).strip():
+                print(f"No haplotype file for {sample}; skipping.", flush=True)
                 continue
 
-            # Original code treats the first column as the read ID.
-            read_chunk.rename(columns={read_chunk.columns[0]: "id"}, inplace=True)
+            haplotype_file = str(haplotype_file).strip()
 
-            read_id = read_chunk["id"].astype(str)
+            try:
+                hap_header = pd.read_csv(
+                    haplotype_file,
+                    sep="\t",
+                    nrows=0,
+                    dtype=str,
+                ).columns.tolist()
 
-            hap = read_id.map(hap_map).fillna("H0")
-            hap = normalize_haplotype(hap)
+                hap_read_col = find_read_col(hap_header)
+                hap_col = find_hap_col(hap_header)
 
-            split_id = read_id.str.split("_m", n=1)
+                hap_df = pd.read_csv(
+                    haplotype_file,
+                    sep="\t",
+                    usecols=[hap_read_col, hap_col],
+                    dtype=str,
+                )
 
-            read_chunk["id"] = (
-                split_id.str[0]
-                + hap
-                + "_m"
-                + split_id.str[1]
-            )
+                hap_df = hap_df.rename(
+                    columns={hap_read_col: "id", hap_col: "haplotype"}
+                )
 
-            total_reads += len(read_chunk)
-            total_h1_h2 += hap.isin(["H1", "H2"]).sum()
+                hap_df["id"] = hap_df["id"].astype(str).str.strip()
+                hap_df = hap_df[hap_df["id"].notna() & (hap_df["id"] != "")]
+                hap_df["haplotype"] = normalize_haplotype(hap_df["haplotype"])
 
-            read_chunk.to_csv(
-                out,
-                sep="\t",
-                index=False,
-                header=first_chunk,
-            )
+                print(f"Loaded haplotype rows for {sample}: {len(hap_df):,}", flush=True)
 
-            first_chunk = False
+                merged = hap_df.merge(
+                    read_stats_small[["isoform"]],
+                    left_on="id",
+                    right_index=True,
+                    how="inner",
+                )
+
+                missing = len(hap_df) - len(merged)
+                total_missing_isoform += missing
+
+                print(
+                    f"Merged rows for {sample}: {len(merged):,}; "
+                    f"missing isoform: {missing:,}",
+                    flush=True,
+                )
+
+                if merged.empty:
+                    continue
+
+                split_id = merged["id"].str.split("_m", n=1, expand=True)
+
+                merged["id"] = (
+                    split_id[0].to_numpy()
+                    + merged["haplotype"].to_numpy()
+                    + "_m"
+                    + split_id[1].to_numpy()
+                )
+
+                out_df = merged[["id", "isoform"]]
+
+                out_df.to_csv(
+                    out,
+                    sep="\t",
+                    index=False,
+                    header=first_output,
+                )
+
+                first_output = False
+                total_written += len(out_df)
+
+                del hap_df, merged, out_df
+
+            except FileNotFoundError:
+                print(f"Warning: File {haplotype_file} not found. Skipping.", flush=True)
+            except pd.errors.EmptyDataError:
+                print(f"Warning: {haplotype_file} is empty. Skipping.", flush=True)
+            except ValueError as e:
+                print(f"Warning: {e}. Skipping {haplotype_file}.", flush=True)
 
     print(f"Updated read_stats saved to {updated_read_stats_path}", flush=True)
-    print(f"Total reads processed: {total_reads:,}", flush=True)
-    print(f"Reads assigned H1/H2: {total_h1_h2:,}", flush=True)
+    print(f"Total rows written: {total_written:,}", flush=True)
+    print(f"Total haplotype rows missing isoform assignment: {total_missing_isoform:,}", flush=True)
 
     write_updated_sample_info()
 
