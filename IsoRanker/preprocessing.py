@@ -416,9 +416,9 @@ def update_files_with_haplotype_info(
 
     # Optional but often helpful if duplicate read IDs exist.
     # Keeps old dict-like behavior less likely to duplicate rows.
-    haplotype_df = haplotype_df.drop_duplicates(subset=["id"], keep="last")
+    #haplotype_df = haplotype_df.drop_duplicates(subset=["id"], keep="last")
 
-    print(f"Haplotype rows after duplicate removal: {len(haplotype_df):,}", flush=True)
+    #print(f"Haplotype rows after duplicate removal: {len(haplotype_df):,}", flush=True)
 
     # ------------------------------------------------------------
     # Merge compact read_stats with haplotypes.
