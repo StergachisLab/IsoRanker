@@ -9,6 +9,7 @@ import shutil
 import argparse
 import gzip
 from pandas.errors import EmptyDataError
+from functools import partial
 
 from IsoRanker import (
     filter_based_on_counts,
@@ -76,6 +77,26 @@ def main():
             "within each Sample + associated_gene pair. Default: None."
         )
     )
+    parser.add_argument(
+        "--noncyclo_ai_invalid_value",
+        required=False,
+        choices=["zero", "nan"],
+        default="zero",
+        help="Value assigned to noncyclo allelic imbalance test_statistic when filters are not met."
+    )
+    parser.add_argument(
+        "--noncyclo_ai_min_proportion_phased",
+        type=float,
+        default=0.1,
+        help="Minimum proportion phased required for Noncyclo Allelic Imbalance."
+    )
+
+    parser.add_argument(
+        "--noncyclo_ai_min_reads_phased",
+        type=int,
+        default=10,
+        help="Minimum phased reads required for Noncyclo Allelic Imbalance."
+    )
 
     args = parser.parse_args()
 
@@ -94,6 +115,19 @@ def main():
     only_omim_with_phenotype = args.only_omim_with_phenotype
     covariate_metadata_path = args.covariate_metadata_path
     min_gene_depth = args.min_gene_depth
+
+    noncyclo_ai_min_proportion_phased = (
+        args.noncyclo_ai_min_proportion_phased
+    )
+
+    noncyclo_ai_min_reads_phased = (
+        args.noncyclo_ai_min_reads_phased
+    )
+
+    if args.noncyclo_ai_invalid_value == "nan":
+        noncyclo_ai_invalid_value = np.nan
+    else:
+        noncyclo_ai_invalid_value = 0.0
 
     output_dir = "."
 
@@ -319,7 +353,15 @@ def main():
             ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
             ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
             ("NMD_rare_steady_state_transcript", NMD_rare_steady_state_transcript),
-            ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance)
+            (
+                "Noncyclo_Allelic_Imbalance",
+                partial(
+                    Noncyclo_Allelic_Imbalance,
+                    min_proportion_phased=noncyclo_ai_min_proportion_phased,
+                    min_reads_phased=noncyclo_ai_min_reads_phased,
+                    invalid_value=noncyclo_ai_invalid_value,
+                ),
+            ),
         ]
 
         # Store full results to generate lookup table
@@ -378,7 +420,15 @@ def main():
             ("Noncyclo_LOE", Noncyclo_Expression_Outlier_LOE),
             ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
             ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
-            ("Noncyclo_Allelic_Imbalance", Noncyclo_Allelic_Imbalance)
+            (
+                "Noncyclo_Allelic_Imbalance",
+                partial(
+                    Noncyclo_Allelic_Imbalance,
+                    min_proportion_phased=noncyclo_ai_min_proportion_phased,
+                    min_reads_phased=noncyclo_ai_min_reads_phased,
+                    invalid_value=noncyclo_ai_invalid_value,
+                ),
+            ),
         ]
 
         #Isoform level

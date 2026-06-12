@@ -380,33 +380,75 @@ def NMD_rare_steady_state_transcript_hap2(group):
 #     group['test_statistic'] = results
 #     return group
 
-def Noncyclo_Allelic_Imbalance(group):
+# def Noncyclo_Allelic_Imbalance(group):
+#     """
+#     Calculate test statistic for Noncyclo allelic imbalance.
+#     This function calculates a unique test statistic for each sample in the group.
+#     """
+#     group = group.copy()
+
+#     reads_phased = group["H1_noncyclo_count"] + group["H2_noncyclo_count"]
+
+#     proportion_phased = (
+#         (reads_phased + 1) /
+#         (reads_phased + group["H0_noncyclo_count"] + 1)
+#     )
+
+#     # validity mask
+#     valid = (proportion_phased >= 0.1) & (reads_phased >= 10)
+#     #valid = (proportion_phased >= 0.5) & (reads_phased >= 20)
+
+#     # initialize output
+#     group["test_statistic"] = 0.0
+#     #group["test_statistic"] = np.nan
+
+#     # compute only where valid
+#     group.loc[valid, "test_statistic"] = np.abs(
+#         np.log2(
+#             (group.loc[valid, "H1_noncyclo_count"] + 1) /
+#             (group.loc[valid, "H2_noncyclo_count"] + 1)
+#         ) *
+#         np.log2(reads_phased[valid])
+#     )
+
+#     return group
+
+
+def Noncyclo_Allelic_Imbalance(
+    group,
+    min_proportion_phased=0.1,
+    min_reads_phased=10,
+    invalid_value=0.0,
+):
     """
     Calculate test statistic for Noncyclo allelic imbalance.
-    This function calculates a unique test statistic for each sample in the group.
     """
+
     group = group.copy()
 
-    reads_phased = group["H1_noncyclo_count"] + group["H2_noncyclo_count"]
-
-    proportion_phased = (
-        (reads_phased + 1) /
-        (reads_phased + group["H0_noncyclo_count"] + 1)
+    reads_phased = (
+        group["H1_noncyclo_count"] +
+        group["H2_noncyclo_count"]
     )
 
-    # validity mask
-    valid = (proportion_phased >= 0.1) & (reads_phased >= 10)
+    proportion_phased = (
+        (reads_phased + 1)
+        / (reads_phased + group["H0_noncyclo_count"] + 1)
+    )
 
-    # initialize output
-    group["test_statistic"] = 0.0
+    valid = (
+        (proportion_phased >= min_proportion_phased) &
+        (reads_phased >= min_reads_phased)
+    )
 
-    # compute only where valid
+    group["test_statistic"] = invalid_value
+
     group.loc[valid, "test_statistic"] = np.abs(
         np.log2(
-            (group.loc[valid, "H1_noncyclo_count"] + 1) /
-            (group.loc[valid, "H2_noncyclo_count"] + 1)
-        ) *
-        np.log2(reads_phased[valid])
+            (group.loc[valid, "H1_noncyclo_count"] + 1)
+            / (group.loc[valid, "H2_noncyclo_count"] + 1)
+        )
+        * np.log2(reads_phased[valid])
     )
 
     return group
