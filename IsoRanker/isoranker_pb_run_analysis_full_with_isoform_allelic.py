@@ -346,6 +346,14 @@ def main():
         # Gene level hypothesis testing
         ################################################
 
+        noncyclo_ai_func = partial(
+            Noncyclo_Allelic_Imbalance,
+            min_proportion_phased=noncyclo_ai_min_proportion_phased,
+            min_reads_phased=noncyclo_ai_min_reads_phased,
+            invalid_value=noncyclo_ai_invalid_value,
+        )
+        noncyclo_ai_func.__name__ = "Noncyclo_Allelic_Imbalance"
+
         # Define hypothesis tests
         test_stat_funcs = [
             ("NMD", NMD_test_statistic),
@@ -353,15 +361,7 @@ def main():
             ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
             ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
             ("NMD_rare_steady_state_transcript", NMD_rare_steady_state_transcript),
-            (
-                "Noncyclo_Allelic_Imbalance",
-                partial(
-                    Noncyclo_Allelic_Imbalance,
-                    min_proportion_phased=noncyclo_ai_min_proportion_phased,
-                    min_reads_phased=noncyclo_ai_min_reads_phased,
-                    invalid_value=noncyclo_ai_invalid_value,
-                ),
-            ),
+            ("Noncyclo_Allelic_Imbalance", noncyclo_ai_func)
         ]
 
         # Store full results to generate lookup table
@@ -420,15 +420,7 @@ def main():
             ("Noncyclo_LOE", Noncyclo_Expression_Outlier_LOE),
             ("Noncyclo_GOE", Noncyclo_Expression_Outlier_GOE),
             ("Cyclo_GOE", Cyclo_Expression_Outlier_GOE),
-            (
-                "Noncyclo_Allelic_Imbalance",
-                partial(
-                    Noncyclo_Allelic_Imbalance,
-                    min_proportion_phased=noncyclo_ai_min_proportion_phased,
-                    min_reads_phased=noncyclo_ai_min_reads_phased,
-                    invalid_value=noncyclo_ai_invalid_value,
-                ),
-            ),
+            ("Noncyclo_Allelic_Imbalance", noncyclo_ai_func)
         ]
 
         #Isoform level
