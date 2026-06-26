@@ -114,7 +114,19 @@ def create_long_format(expression_matrix, sample_info=None):
     sample_info = sample_info[sample_info["sample"].isin(valid_samples)].copy()
 
     sample_info["condition"] = sample_info["condition"].astype(str).str.lower()
-    sample_info["haplotype"] = sample_info["haplotype"].fillna("H0").astype(str)
+    
+    #sample_info["haplotype"] = sample_info["haplotype"].fillna("H0").astype(str)
+    sample_info["haplotype"] = (
+        sample_info["haplotype"]
+            .fillna("H0")
+            .astype(str)
+            .str.strip()
+    )
+
+    sample_info.loc[
+        sample_info["haplotype"].isin(["", "none", "None", "nan", "NaN"]),
+        "haplotype"
+    ] = "H0"
 
     individuals = pd.Index(sample_info["individual"].drop_duplicates())
     isoforms = expr.index
