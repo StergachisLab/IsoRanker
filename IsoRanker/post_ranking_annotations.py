@@ -756,6 +756,15 @@ def filter_multiple_vcfs(pair_list_path, gene_list_dir, flank=1000, max_af_cutof
         individual = row["individual"]
         vcf_in = row["individual_vcf"]
 
+        if pd.isna(vcf_in) or str(vcf_in).strip() == "" or str(vcf_in).strip().lower() in {"nan", "none", "na"}:
+            print(
+                f"Skipping {individual}: no individual_vcf provided.",
+                flush=True
+            )
+            continue
+
+        vcf_in = str(vcf_in).strip()
+
         gene_list_file = os.path.join(
             gene_list_dir,
             f"{individual}_gene_list.txt"
