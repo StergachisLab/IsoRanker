@@ -498,3 +498,199 @@ def plot_haplotype_skew_noncyclo(
     print(f"Wrote figure: {output_figure}")
 
     return tidy
+
+
+
+def summarize_phased_genes_by_sample(
+    data,
+    output_file="phased_gene_threshold_summary.tsv.gz",
+    thresholds=None,
+    sample_col="Sample",
+    gene_col="associated_gene",
+    conditions=("cyclo", "noncyclo"),
+):
+    """
+    Count genes passing paired phased-read and phased-proportion thresholds.
+
+    Cyclo and noncyclo are treated as separate samples. For example, an input
+    sample named ``UDN212054`` produces separate output rows named
+    ``UDN212054_cyclo`` and ``UDN212054_noncyclo``.
+
+    For a threshold ``t``, a gene passes when both conditions are true::
+
+        H1 + H2 >= t
+        (H1 + H2) / (H0 + H1 + H2) >= t / 100
+
+    By default, thresholds are 10, 20, ..., 100. Counts are first collapsed by
+    input sample, condition, and gene so that each gene is counted at most once
+    per condition-specific sample.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame or str or os.PathLike
+        Input DataFrame or path to a tab-delimited table. Compression is
+        inferred from the filename.
+    output_file : str or os.PathLike or None, optional
+        Path for the wide summary table. Compression is inferred from the
+        filename. Set to None to skip writing the table.
+    thresholds : iterable of int, optional
+        Paired count/percentage thresholds. Values must be between 0 and 100.
+        Defaults to ``range(10, 101, 10)``.
+    sample_col : str, optional
+        Input sample column.
+    gene_col : str, optional
+        Input gene column.
+    conditions : iterable of str, optional
+        Conditions to summarize. For each condition, the input must contain
+        ``H0_<condition>_count``, ``H1_<condition>_count``, and
+        ``H2_<condition>_count``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per condition-specific sample. Threshold columns contain the
+        number of unique genes passing the paired requirements.
+
+    Raises
+    ------
+    TypeError
+        If ``data`` is not a DataFrame or path.
+    ValueError
+        If thresholds are invalid or required columns are absent.
+    """
+    if thresholds is None:
+        thresholds = list(range(10, 101, 10))
+    else:
+        thresholds = sorted({int(value) for value in thresholds})
+
+    if not thresholds:
+        raise ValueError("thresholds must contain at least one value.")
+    invalid_thresholds = [value for value in thresholds if not 0 <= value <= 100]
+    if invalid_thresholds:
+        raise ValueError(
+            "thresholds must be between 0 and 100. Invalid value(s): "
+            + ", ".join(map(str, invalid_thresholds))
+        )
+
+    conditions = tuple(str(condition).lower() for condition in conditions)
+    if not conditions:
+        raise ValueError("conditions must contain at least one condition.")
+
+    if isinstance(data, (str, os.PathLike)):
+        df = pd.read_csv(data, sep="\t", compression="infer")
+    elif isinstance(data, pd.DataFrame):
+        df = data.copy()
+    else:
+        raise TypeError("data must be a pandas DataFrame or a file path.")
+
+    required_columns = {sample_col, gene_col}
+    for condition in conditions:
+        required_columns.update(
+            {
+                f"H0_{condition}_count",
+                f"H1_{condition}_count",
+                f"H2_{condition}_count",
+            }
+        )
+
+    missing_columns = sorted(required_columns.difference(df.columns))
+    if missing_columns:
+        raise ValueError(
+            "Input is missing required column(s): " + ", ".join(missing_columns)
+        )
+
+    # Keep only rows with a defined sample and gene. Missing count values are
+    # treated as zero so they cannot spuriously satisfy a threshold.
+    df = df.loc[df[sample_col].notna() & df[gene_col].notna()].copy()
+    df[sample_col] = df[sample_col].astype(str)
+    df[gene_col] = df[gene_col].astype(str)
+
+    count_columns = []
+    for condition in conditions:
+        condition_columns = [
+            f"H0_{condition}_count",
+            f"H1_{condition}_count",
+            f"H2_{condition}_count",
+        ]
+        count_columns.extend(condition_columns)
+        for column in condition_columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0)
+
+    # A gene may be represented by more than one row. Sum counts first so that
+    # each sample-gene pair contributes at most one gene to each threshold.
+    collapsed = (
+        df.groupby([sample_col, gene_col], as_index=False, sort=False)[count_columns]
+        .sum()
+    )
+
+    sample_order = pd.unique(collapsed[sample_col]).tolist()
+    sample_rank = {sample: rank for rank, sample in enumerate(sample_order)}
+    condition_rank = {condition: rank for rank, condition in enumerate(conditions)}
+    output_rows = []
+
+    for condition in conditions:
+        h0_col = f"H0_{condition}_count"
+        h1_col = f"H1_{condition}_count"
+        h2_col = f"H2_{condition}_count"
+
+        condition_df = collapsed[[sample_col, gene_col, h0_col, h1_col, h2_col]].copy()
+        condition_df["phased_reads"] = condition_df[h1_col] + condition_df[h2_col]
+        condition_df["total_reads"] = condition_df["phased_reads"] + condition_df[h0_col]
+        condition_df["phased_proportion"] = (
+            condition_df["phased_reads"]
+            .div(condition_df["total_reads"])
+            .where(condition_df["total_reads"] > 0)
+        )
+
+        for sample, sample_df in condition_df.groupby(sample_col, sort=False):
+            sample_text = str(sample)
+            suffix = f"_{condition}"
+            condition_sample = (
+                sample_text
+                if sample_text.lower().endswith(suffix)
+                else f"{sample_text}{suffix}"
+            )
+
+            row = {
+                "Sample": condition_sample,
+                "Original_Sample": sample_text,
+                "Condition": condition,
+                "genes_with_any_reads": int(sample_df["total_reads"].gt(0).sum()),
+                "genes_with_any_phased_reads": int(sample_df["phased_reads"].gt(0).sum()),
+            }
+
+            for threshold in thresholds:
+                passes = (
+                    sample_df["phased_reads"].ge(threshold)
+                    & sample_df["phased_proportion"].ge(threshold / 100.0)
+                )
+                column_name = (
+                    f"genes_ge_{threshold}_phased_reads_"
+                    f"and_ge_{threshold}_percent_phased"
+                )
+                row[column_name] = int(passes.sum())
+
+            output_rows.append(row)
+
+    summary = pd.DataFrame(output_rows)
+    if not summary.empty:
+        summary["_sample_rank"] = summary["Original_Sample"].map(sample_rank)
+        summary["_condition_rank"] = summary["Condition"].map(condition_rank)
+        summary = (
+            summary.sort_values(["_sample_rank", "_condition_rank", "Sample"])
+            .drop(columns=["_sample_rank", "_condition_rank"])
+            .reset_index(drop=True)
+        )
+
+    if output_file is not None:
+        output_file = Path(output_file)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        summary.to_csv(
+            output_file,
+            sep="\t",
+            index=False,
+            compression="infer",
+        )
+        print(f"Wrote phased-gene summary: {output_file}")
+
+    return summary
