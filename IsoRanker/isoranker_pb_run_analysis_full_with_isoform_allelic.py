@@ -39,7 +39,8 @@ from IsoRanker import (
     write_sample_gene_lists,
     passes_max_af_filter,
     filter_multiple_vcfs,
-    correct_tpm_by_metadata_covariates_with_pca
+    correct_tpm_by_metadata_covariates_with_pca,
+    plot_haplotype_skew_noncyclo,
 )
 
 def main():
@@ -862,6 +863,16 @@ def main():
 
 
     ###################################
+    # Haplotype phasing
+    ###################################
+
+    skew_df = plot_haplotype_skew_noncyclo(
+        data="Noncyclo_Allelic_Imbalance_gen_full_test_stat_and_z_scored_data.tsv.gz",
+        output_table="haplotype_skew_summary_noncyclo_individual.tsv",
+        output_figure="haplotype_skew_plot_noncyclo_jitter_individual.pdf",
+    )
+
+    ###################################
     # Organize output files
     ###################################
 
@@ -893,7 +904,9 @@ def main():
         "SRSF6_exonic_proportion.pdf",
         "isoform_diversity.pdf",
         "gene_diversity.pdf",
-        "SRSF6_exonic_proportion_normalized_delta.pdf"
+        "SRSF6_exonic_proportion_normalized_delta.pdf",
+        "haplotype_skew_plot_noncyclo_jitter_individual.pdf",
+        "haplotype_skew_summary_noncyclo_individual.tsv"
     }
 
     lookup_table_files = {
