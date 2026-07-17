@@ -43,7 +43,9 @@ from .post_ranking_annotations import (
 from .qc import(
     process_and_plot_pca,
     analyze_isoforms,
-    process_pileup
+    process_pileup,
+    plot_haplotype_skew_noncyclo,
+    summarize_phased_genes_by_sample
 )
 from .batch_correction import (
     clean_covariate_name,
