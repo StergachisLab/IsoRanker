@@ -10,4 +10,4 @@ See the [wiki](https://github.com/yhhc2/IsoRanker/wiki) for detailed installatio
 
 ## Citation
 
-Cheng YHH, Sedeño-Cortés AE, Ranchalis JE, et al. Long-read transcriptome analysis using IsoRanker for identifying pathogenic variants in Mendelian conditions. Am J Hum Genet. Published online August 25, 2026. doi:10.1016/j.ajhg.2026.08.002.
+Cheng YHH, Sedeño-Cortés AE, Ranchalis JE, et al. Long-read transcriptome analysis using IsoRanker for identifying pathogenic variants in Mendelian conditions. Am J Hum Genet. Published online August 25, 2026. [doi:10.1016/j.ajhg.2026.08.002](https://authors.elsevier.com/c/1ng2rgeXHnTQ).
